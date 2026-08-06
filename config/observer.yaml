@@ -1,0 +1,37 @@
+ft_contact_observer:
+  ros__parameters:
+    model_path: ""
+    observer_input_topic: /bae_r/observer_input
+    ft_topic: /aft_sensor2/wrench
+    contact_observation_topic: /contact_observer/right/observation
+    predicted_sensor_wrench_topic: /ft_free_space/right/predicted_wrench
+    contact_sensor_wrench_topic: /ft_free_space/right/contact_wrench
+    diagnostics_topic: /ft_contact_observer/diagnostics
+    observer_input_frame: right_base_link
+    ft_frame: aft_sensor2
+    sample_hz: 262.5
+    max_sync_error_ms: 3.0
+    max_source_age_ms: 20.0
+    clock_future_tolerance_ms: 2.0
+
+    zero_set_confirmed: false
+    zero_set_id: ""
+    zero_pose_deg: [5.5, 52.0, 112.0, 28.0, -107.0, -35.0]
+    zero_pose_tolerance_deg: 1.0
+    zero_max_joint_speed_rad_s: 0.02
+    zero_settle_s: 1.0
+    zero_force_norm_max_n: 1.0
+    zero_force_axis_std_max_n: 0.20
+
+    payload_id: ""
+    controller_config_hash: ""
+
+    # 기본값은 기존 fb_leaderarm의 right_ft_frame=right_link_6 정렬 가정이다.
+    # 센서 축/원점이 다르면 실측한 Z-Y-X 각도와 tip->sensor 위치로 교정한다.
+    sensor_to_tip_zyx_deg: [0.0, 0.0, 0.0]
+    tip_to_sensor_translation_m: [0.0, 0.0, 0.0]
+
+    force_on_n: 2.0
+    force_off_n: 1.2
+    contact_hold_ms: 8.0
+    free_hold_ms: 20.0

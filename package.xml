@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ft_fb_leaderarm</name>
+  <version>0.1.0</version>
+  <description>Physical-FT free-space wrench modeling, contact observation, and right-arm leader teleoperation</description>
+  <maintainer email="chemx3937@gmail.com">chem</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>ament_cmake_python</build_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>contact_observer_msgs</depend>
+  <depend>pinocchio</depend>
+  <depend>Eigen3</depend>
+  <depend>tinyxml2</depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-torch</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

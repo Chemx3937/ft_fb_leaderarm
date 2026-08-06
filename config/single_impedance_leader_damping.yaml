@@ -1,0 +1,518 @@
+# 피드백 좋을때 값을 사용하면 피드백은 잘 되는데 움직일때 피드백 때문에 5번에 진동이 너무 심함 <- 수정 필요
+
+leader_teleop_node:
+  ros__parameters:
+    # =============================================================================
+    # 1) 실행 모드 / 공통 로그 설정
+    # =============================================================================
+
+    # 사용할 leader/follower 팔 방향입니다.
+    # 선택지: "left"=왼팔, "right"=오른팔
+    side: "right"
+
+    # 메인 제어 루프 목표 주파수입니다. 값이 높을수록 반응은 빠르지만 DXL 통신 부담이 커집니다.
+    control_hz: 500
+
+    # 상태 로그 출력 주기입니다. 단위는 second입니다.
+    log_period_sec: 0.1
+
+    # 터미널 로그에 색상을 사용할지 결정합니다.
+    # 선택지: true=색상 사용, false=일반 텍스트
+    color_log: true
+
+    # Legacy leader-side contact gate 판정 결과를 publish하는 topic입니다.
+    # contact_observer 모드에서는 observer가 canonical state를 직접 publish하므로 이 topic을 만들지 않습니다.
+    # std_msgs/msg/Int32, contact=1, non-contact=-1이며 publish 주기는 control_hz와 같습니다.
+    contact_state_topic: "~/contact_state"
+
+    # Pre-contact phase publish 사용 여부입니다.
+    # true이면 contact_phase_topic으로 std_msgs/msg/Int32를 publish합니다.
+    # -1=free/non-contact, 0=pre-contact, 1=contact입니다.
+    use_pre_contact_phase: true
+    contact_phase_topic: "~/contact_phase"
+
+    # leader에 반사할 force feedback 입력 소스입니다.
+    # 선택지:
+    #   "contact_observer" = FT raw - FT free-space prediction으로 만든 ContactObservation
+    #   "jt_wrench" = /F_e 계열 wrench
+    #   "ft"        = 물리 F/T 센서
+    #   "off"       = feedback 비활성화
+    feedback_source: "contact_observer"
+
+    # contact_observer 모드의 canonical 입력과 PC 수신 기준 stale timeout입니다.
+    contact_observation_topic: "/contact_observer/right/observation"
+    contact_observation_stale_timeout: 0.020
+    contact_observation_clock_future_tolerance: 0.002
+
+    # Canonical wrench를 follower pose에서 leader torque로 mapping할 때 사용하는
+    # follower JointState의 local receive-time timeout입니다.
+    follower_joint_stale_timeout: 0.050
+
+    # =============================================================================
+    # 2) Dynamixel 하드웨어 / encoder / current 변환
+    # =============================================================================
+
+    # 리더 U2D2의 고정 FTDI 장치 경로입니다. USB 재연결로 ttyUSB 번호가
+    # 바뀌더라도 다른 장치를 열지 않도록 /dev/serial/by-id를 사용합니다.
+    dxl_device: "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAK8C93-if00-port0"
+
+    # Dynamixel 통신 baudrate입니다.
+    dxl_baud: 2000000
+
+    # 왼팔 leader Dynamixel ID 6개입니다.
+    left_dxl_ids: [1, 2, 3, 4, 5, 6]
+
+    # 오른팔 leader Dynamixel ID 6개입니다.
+    right_dxl_ids: [11, 12, 13, 14, 15, 16]
+
+    # 왼팔 각 joint의 encoder zero tick입니다.
+    left_zero_ticks: [2048, 2048, 2048, 2048, 2048, 2048]
+
+    # 오른팔 각 joint의 encoder zero tick입니다.
+    right_zero_ticks: [2048, 2048, 2048, 2048, 2048, 2048]
+
+    # 왼팔 leader joint 각도 부호입니다. follower와 반대 방향이면 해당 joint를 -1로 둡니다.
+    left_joint_signs: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # 오른팔 leader joint 각도 부호입니다. follower와 반대 방향이면 해당 joint를 -1로 둡니다.
+    right_joint_signs: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # 왼팔 leader 각도를 follower 각도로 보낼 때 더하는 joint offset입니다. 단위는 rad입니다.
+    left_offset_rad: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # 오른팔 leader 각도를 follower 각도로 보낼 때 더하는 joint offset입니다. 단위는 rad입니다.
+    right_offset_rad: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # joint별 motor torque constant입니다. torque/current 변환에 사용하며 단위는 Nm/A입니다.
+    torque_constant_Nm_per_A: [2.020, 2.020, 1.783, 1.136, 1.783, 1.136]
+
+    # joint별 Dynamixel current 1 unit의 Ampere 값입니다.
+    current_unit_A: [0.00269, 0.00269, 0.00269, 0.001, 0.00269, 0.001]
+
+    # joint별 goal current clamp입니다. 단위는 DXL current unit입니다.
+    max_current_unit: [2047, 2047, 1193, 910, 1193, 910]
+
+    # =============================================================================
+    # 3) URDF / joint 이름 / frame 이름
+    # =============================================================================
+
+    # leader arm URDF 경로입니다. Pinocchio 중력보상과 Jacobian 계산에 사용합니다.
+    leader_urdf_path: "/home/vision/dualarm_ws/src/teleop/description/Dual_leader_Arm/urdf/Dual_leader_Arm2.urdf"
+
+    # follower robot URDF 경로입니다. follower FK와 wrench frame 변환에 사용합니다.
+    follower_urdf_path: "/home/vision/dualarm_ws/src/aidin_dsr_dualarm/aidin_dsr_dualarm_description/urdf/aidin_dsr_dualarm_aligned_hand.urdf"
+
+    # 왼팔 leader URDF의 6개 joint 이름입니다.
+    left_leader_joint_names: ["leader_left_joint_1", "leader_left_joint_2", "leader_left_joint_3",
+                              "leader_left_joint_4", "leader_left_joint_5", "leader_left_joint_6"]
+
+    # 오른팔 leader URDF의 6개 joint 이름입니다.
+    right_leader_joint_names: ["leader_right_joint_1", "leader_right_joint_2", "leader_right_joint_3",
+                               "leader_right_joint_4", "leader_right_joint_5", "leader_right_joint_6"]
+
+    # 왼팔 follower URDF의 6개 joint 이름입니다. Pinocchio model indexing에 사용합니다.
+    left_follower_joint_names: ["left_joint_1", "left_joint_2", "left_joint_3",
+                                "left_joint_4", "left_joint_5", "left_joint_6"]
+
+    # 오른팔 follower URDF의 6개 joint 이름입니다. Pinocchio model indexing에 사용합니다.
+    right_follower_joint_names: ["right_joint_1", "right_joint_2", "right_joint_3",
+                                 "right_joint_4", "right_joint_5", "right_joint_6"]
+
+    # 왼팔 live JointState topic에서 publish되는 follower joint 이름입니다.
+    left_follower_state_joint_names: ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+
+    # 오른팔 live JointState topic에서 publish되는 follower joint 이름입니다.
+    right_follower_state_joint_names: ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+
+    # leader URDF에서 Jacobian을 표현할 base frame입니다.
+    leader_base_frame: "leader_base"
+
+    # 왼팔 leader tip frame입니다. leader Jacobian 계산에 사용합니다.
+    left_leader_tip_frame: "leader_left_link_6"
+
+    # 오른팔 leader tip frame입니다. leader Jacobian 계산에 사용합니다.
+    right_leader_tip_frame: "leader_right_link_6"
+
+    # 왼팔 follower end-effector frame 이름입니다. FK와 wrench 적용점 계산에 사용합니다.
+    left_ee_frame: "left_link_6"
+
+    # 오른팔 follower end-effector frame 이름입니다. FK와 wrench 적용점 계산에 사용합니다.
+    right_ee_frame: "right_link_6"
+
+    # =============================================================================
+    # 4) Leader 중력보상
+    # =============================================================================
+
+    # leader 중력보상 사용 여부입니다.
+    # 선택지: true=중력보상 사용, false=중력보상 비활성화
+    use_gravity_comp: true
+
+    # FAST 상태에서 사용할 joint별 중력보상 gain입니다. 팔이 처지면 올리고 위로 뜨면 낮춥니다.
+    # grav_gain: [0.25, 0.25, 0.6, 0.1, 0.4, 0.1]
+    grav_gain: [0.25, 0.25, 0.45, 0.1, 0.3, 0.1]
+
+    # grav_sync_scale_per_joint가 비어 있거나 잘못된 경우 사용할 중력보상 sync scale입니다.
+    grav_sync_scale: 2.5
+
+    # CURRENT/SLOW/INIT POSE에서 사용할 joint별 중력보상 scale입니다.
+    # grav_sync_scale_per_joint: [2.5, 3.0, 2.0, 1.5, 2.0, 1.0]
+    grav_sync_scale_per_joint: [2.5, 3.0, 2.5, 1.5, 2.5, 1.0]
+
+    # FAST 전환 시 중력보상 scale을 목표값으로 ramp하는 시간입니다. 단위는 second입니다.
+    grav_ramp_sec: 1.5
+
+# Tuning 필요
+    # 중력보상 torque에 적용하는 joint별 low-pass cutoff입니다. 0이면 해당 joint는 passthrough입니다.
+    # 낮을수록 순간 튐은 줄지만 자세 변화에 대한 중력보상 반응이 느려집니다.
+    tau_grav_lpf_cutoff_hz: [6.0, 6.0, 4.0, 4.0, 4.0, 4.0]
+
+    # =============================================================================
+    # 5) Leader Damping Torque (C/D 모드 선택)
+    # =============================================================================
+
+    # Leader damping 사용 여부입니다. true면 tau_cmd에 -Kd*dq damping torque를 추가합니다.
+    # 선택지: true=사용, false=비활성화
+    use_leader_damping: true
+
+    # Leader 속도를 얻는 방식입니다.
+    # 선택지:
+    #   "differentiate_pose" = position 미분 기반(C)
+    #   "dxl_vel"            = DXL Present Velocity 기반(D)
+    leader_damping_velocity_source: "dxl_vel"
+
+# Tuning 필요
+    # Joint별 damping gain입니다. 단위는 대략 Nm/(rad/s)입니다.
+    leader_damping_gain: [0.04, 0.04, 0.025, 0.006, 0.01, 0.006]
+
+# Tuning 필요
+    # Joint별 leader velocity LPF cutoff입니다. 낮을수록 부드럽지만 반응이 느려집니다.
+    leader_damping_lpf_cutoff_hz: [12.0, 12.0, 8.0, 8.0, 5.0, 8.0]
+
+# Tuning 필요
+    # Joint별 damping torque clamp입니다. damping이 과하게 걸리는 것을 막습니다.
+    leader_damping_clip_Nm: [0.20, 0.20, 0.08, 0.03, 0.04, 0.03]
+
+    # =============================================================================
+    # 6) Feedback 공통 안정화 (LPF / deadband / slew / motion gate)
+    # =============================================================================
+
+# Tuning 필요
+    # reflected feedback torque에 적용하는 joint별 low-pass cutoff입니다. 0이면 해당 joint는 passthrough입니다.
+    
+    # 피드백 좋을때 값
+    tau_lpf_cutoff_hz: [15.0, 15.0, 15.0, 6.0, 15.0, 6.0]
+
+
+    # tau_lpf_cutoff_hz: [10.0, 10.0, 6.0, 4.0, 6.0, 4.0]
+
+
+# Tuning 필요
+    # Joint별 feedback torque deadband입니다. 작은 free-space feedback torque를 제거합니다.
+    # tau_fb_deadband_Nm: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+    tau_fb_deadband_Nm: [0.003, 0.003, 0.004, 0.002, 0.004, 0.002]
+
+# Tuning 필요
+    # Joint별 feedback torque 변화율 제한입니다. 단위는 Nm/s입니다.
+    # tau_fb_slew_rate_Nm_s: [0.8, 0.8, 0.9, 0.15, 0.9, 0.15]
+
+    # 피드백 좋을때 값
+    tau_fb_slew_rate_Nm_s: [1.5, 1.5, 2.5, 0.6, 2.5, 0.6]
+
+    # tau_fb_slew_rate_Nm_s: [1.0, 1.0, 1.2, 0.35, 0.8, 0.35]
+
+
+    # Leader motion 속도에 따라 feedback gain을 줄이는 기능입니다.
+    # 선택지: true=사용, false=비활성화
+    tau_fb_motion_gate_enable: true
+
+# Tuning 필요
+    # Motion gate 속도 기준입니다.
+    # 선택지: 
+      # "ee_linear"=leader end-effector 선속도 기준(m/s), 
+      # "joint_max"=가장 빠른 joint 속도 기준(rad/s, legacy)
+    tau_fb_motion_gate_speed_source: "joint_max"
+
+# Tuning 필요
+    # Motion gate가 시작되는 leader end-effector 선속도입니다. 이 값 아래에서는 feedback scale이 1.0입니다. 단위는 m/s입니다.
+    tau_fb_motion_gate_speed_low_m_s: 0.05
+
+# Tuning 필요
+    # Motion gate가 최대로 적용되는 leader end-effector 선속도입니다. 이 값 이상에서는 feedback scale이 tau_fb_motion_gate_min_scale까지 내려갑니다. 단위는 m/s입니다.
+    tau_fb_motion_gate_speed_high_m_s: 0.20
+
+    # speed_source가 "joint_max"일 때 사용하는 joint 속도 기준입니다. 단위는 rad/s입니다.
+    # 이번 로그 기준 dqmax p50=0.03, p90=0.21rad/s라서 0.05부터 줄이고 0.20 이상은 거의 차단합니다.
+    tau_fb_motion_gate_speed_low_rad_s: 0.05
+    tau_fb_motion_gate_speed_high_rad_s: 0.20
+
+# Tuning 필요
+    # Motion gate가 최대로 적용될 때 남길 최소 feedback scale입니다.
+    tau_fb_motion_gate_min_scale: 0.05
+
+    # Feedback torque가 leader 운동 방향으로 일을 해서 진동 에너지를 주입할 때만 줄이는 passivity gate입니다.
+    # P_i = tau_fb[i] * leader_dq[i]가 start보다 크면 해당 joint feedback만 줄이고 full 이상이면 min_scale까지 낮춥니다.
+    tau_fb_passivity_gate_enable: true
+    tau_fb_passivity_power_start_W: 0.001
+    tau_fb_passivity_power_full_W: 0.012
+    tau_fb_passivity_min_scale: 0.05
+
+    # contact_observer가 접촉 상태를 이미 판정하므로 기존 내부 contact gate는 중복 적용하지 않습니다.
+    tau_fb_contact_gate_enable: false
+
+# Tuning 필요
+    # Contact ON 판정 force threshold입니다. F_norm이 이 값 이상으로 on_hold 동안 유지되면 접촉으로 봅니다. 단위는 N입니다.
+    tau_fb_contact_force_on_N: 4.0
+
+# Tuning 필요
+    # Contact OFF 판정 force threshold입니다. F_norm이 이 값 이하로 off_hold 동안 유지되면 비접촉으로 봅니다. 단위는 N입니다.
+    tau_fb_contact_force_off_N: 3.2
+
+# Tuning 필요
+    # Contact ON 판정 moment threshold입니다. M_norm이 이 값 이상으로 on_hold 동안 유지되면 접촉으로 봅니다. 단위는 Nm입니다.
+    tau_fb_contact_moment_on_Nm: 1000.0
+
+# Tuning 필요
+    # Contact OFF 판정 moment threshold입니다. M_norm이 이 값 이하로 off_hold 동안 유지되면 비접촉으로 봅니다. 단위는 Nm입니다.
+    tau_fb_contact_moment_off_Nm: 1000.0
+
+    # Contact ON 후보가 유지되어야 하는 시간입니다. 짧을수록 빠르게 켜지지만 허공 노이즈에 민감해집니다. 단위는 ms입니다.
+    tau_fb_contact_on_hold_ms: 150.0
+
+    # Contact OFF 후보가 유지되어야 하는 시간입니다. 길수록 접촉 해제 후 feedback이 천천히 닫힙니다. 단위는 ms입니다.
+    tau_fb_contact_off_hold_ms: 80.0
+
+# Tuning 필요
+    # 비접촉 상태에서 남길 feedback scale입니다. 0에 가까울수록 허공 feedback이 더 강하게 차단됩니다.
+    tau_fb_contact_free_scale: 0.0
+
+    # Contact ON으로 전환될 때 feedback scale을 1.0까지 올리는 시간입니다. 단위는 ms입니다.
+    tau_fb_contact_ramp_up_ms: 80.0
+
+    # Contact OFF로 전환될 때 feedback scale을 free_scale까지 내리는 시간입니다. 단위는 ms입니다.
+    tau_fb_contact_ramp_down_ms: 80.0
+
+    # 빠른 free-space 이동에서 /F_e가 4~7N까지 튀는 것을 contact로 보지 않기 위한 speed-aware contact gate입니다.
+    # 느릴 때는 약한 4N 접촉을 살리고, 빠를 때는 ON/OFF threshold를 높여 free-space feedback을 닫습니다.
+    tau_fb_contact_speed_gate_enable: true
+    tau_fb_contact_speed_low_m_s: 0.03
+    tau_fb_contact_speed_high_m_s: 0.12
+    tau_fb_contact_force_on_fast_N: 8.0
+    tau_fb_contact_force_off_fast_N: 7.0
+    tau_fb_contact_moment_on_fast_Nm: 1000.0
+    tau_fb_contact_moment_off_fast_Nm: 1000.0
+
+    # Contact ON은 leader가 충분히 느릴 때만 허용합니다.
+    # free-space 반복 로그 기준 joint_max 0.08rad/s 제한이 false contact를 28.7% -> 약 0.6%로 줄였습니다.
+    tau_fb_contact_on_max_joint_speed_rad_s: 0.08
+    tau_fb_contact_on_max_ee_speed_m_s: 0.0
+
+    # 비접촉 상태에서 free-space wrench bias를 천천히 추정해서 제거할지 결정합니다.
+    # 선택지: true=사용, false=비활성화
+    tau_fb_contact_bias_enable: true
+
+    # Free-space bias LPF cutoff입니다. 낮을수록 천천히 bias를 따라가며 실제 접촉력을 덜 흡수합니다. 단위는 Hz입니다.
+    tau_fb_contact_bias_lpf_cutoff_hz: 0.2
+
+    # Bias를 업데이트할 수 있는 최대 leader end-effector 속도입니다. 이 속도보다 빠르면 관성 성분을 bias로 학습하지 않습니다. 단위는 m/s입니다.
+    tau_fb_contact_bias_update_max_ee_speed_m_s: 0.04
+    tau_fb_contact_bias_update_max_joint_speed_rad_s: 0.06
+
+    # Free-space bias가 너무 크게 학습되면 나중에 raw /F_e가 정상으로 돌아왔을 때 raw-bias가 가짜 접촉으로 보입니다.
+    # 이번 로그의 false contact는 bias norm이 약 5.3N까지 커진 것이 원인이므로 force bias를 제한합니다.
+    tau_fb_contact_bias_force_clip_N: 3.0
+
+    # Contact ON 상태인데 raw /F_e는 작고 raw-bias residual만 큰 상태가 지속되면 stale bias로 보고 contact를 닫습니다.
+    # 실제 4N 이상 접촉은 raw force도 같이 커지는 경우가 많으므로 raw_force_max를 3.5N으로 보수적으로 둡니다.
+    tau_fb_contact_stale_bias_reset_enable: true
+    tau_fb_contact_stale_bias_raw_force_max_N: 3.5
+    tau_fb_contact_stale_bias_residual_force_min_N: 4.0
+    tau_fb_contact_stale_bias_residual_force_max_N: 8.0
+    tau_fb_contact_stale_bias_speed_max_m_s: 0.08
+    tau_fb_contact_stale_bias_hold_ms: 500.0
+
+    # =============================================================================
+    # 7) JT wrench feedback (/F_e)
+    # =============================================================================
+
+    # contact_observer도 기존과 동일한 wrench-to-leader-torque mapping을 유지하기
+    # 위해 아래 *_jt_wrench_fb_gain/clip을 사용합니다. 이름만 기존 호환용이며
+    # 실제 입력은 /F_e가 아니라 FT 기반 contact_observation입니다.
+
+    # JT wrench feedback 기능 사용 여부입니다. feedback_source가 "jt_wrench"일 때 필요합니다.
+    # 선택지: true=기능 허용, false=기능 비활성화
+    use_jt_wrench_feedback: false
+
+    # 왼팔 JT wrench feedback topic입니다. Float64MultiArray [Fx,Fy,Fz,Mx,My,Mz]를 기대합니다.
+    left_jt_wrench_topic: "/bae_l/F_e"
+
+    # 오른팔 JT wrench feedback topic입니다. Float64MultiArray [Fx,Fy,Fz,Mx,My,Mz]를 기대합니다.
+    right_jt_wrench_topic: "/bae_r/F_e"
+
+    # side-specific JT wrench topic이 없을 때 같이 구독할 fallback topic입니다. 빈 문자열이면 비활성화됩니다.
+    jt_wrench_fallback_topic: "/F_e"
+
+    # side별 gain이 없을 때 사용할 JT wrench feedback joint gain fallback입니다.
+    jt_wrench_fb_gain: [0.012, 0.012, 0.065, 0.012, 0.065, 0.012]
+
+    # 왼팔 JT wrench feedback joint gain입니다. reflected joint torque에 곱해집니다.
+    left_jt_wrench_fb_gain: [0.012, 0.012, 0.065, 0.012, 0.065, 0.012]
+
+    # 오른팔 JT wrench feedback joint gain입니다. reflected joint torque에 곱해집니다.
+    # right_jt_wrench_fb_gain: [0.010, 0.010, 0.045, 0.01, 0.045, 0.01]
+    right_jt_wrench_fb_gain: [0.012, 0.012, 0.065, 0.012, 0.065, 0.012]
+
+    # joint별 feedback torque clamp입니다. 단위는 Nm입니다.
+    # jt_wrench_fb_clip: [0.25, 0.25, 0.20, 0.04, 0.20, 0.04]
+    jt_wrench_fb_clip: [0.30, 0.30, 0.30, 0.08, 0.30, 0.08]
+
+    # FAST 진입 시 JT wrench tare에 사용할 sample 개수입니다.
+    jt_wrench_tare_N: 100
+
+    # JT wrench data가 이 시간보다 오래되면 feedback을 0으로 처리합니다. 단위는 second입니다.
+    jt_wrench_stale_timeout: 0.5
+
+    # JT wrench feedback spatial wrench [Mx,My,Mz,Fx,Fy,Fz]에 적용할 부호입니다.
+    jt_wrench_feedback_wrench_sign: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # =============================================================================
+    # 8) Physical F/T sensor feedback
+    # =============================================================================
+
+    # physical F/T sensor feedback 기능 사용 여부입니다. feedback_source가 "ft"일 때 필요합니다.
+    # 선택지: true=기능 허용, false=기능 비활성화
+    use_ft_feedback: true
+
+    # 왼팔 physical F/T sensor WrenchStamped topic입니다.
+    left_ft_topic: "/aft_sensor1/wrench"
+
+    # 오른팔 physical F/T sensor WrenchStamped topic입니다.
+    right_ft_topic: "/aft_sensor2/wrench"
+
+    # 왼팔 F/T sensor frame 이름입니다. URDF에 없으면 ee_frame fallback을 사용합니다.
+    left_ft_frame: "left_link_6"
+
+    # 오른팔 F/T sensor frame 이름입니다. URDF에 없으면 ee_frame fallback을 사용합니다.
+    right_ft_frame: "right_link_6"
+
+    # side별 gain이 없을 때 사용할 physical F/T feedback joint gain fallback입니다.
+    ft_fb_gain: [0.02, 0.02, 0.0225, 0.035, 0.0225, 0.035]
+
+    # 왼팔 physical F/T feedback joint gain입니다.
+    left_ft_fb_gain: [0.02, 0.02, 0.0225, 0.035, 0.0225, 0.035]
+
+    # 오른팔 physical F/T feedback joint gain입니다.
+    right_ft_fb_gain: [0.02, 0.02, 0.03, 0.035, 0.03, 0.035]
+
+    # physical F/T feedback torque clamp입니다. 단위는 Nm입니다.
+    ft_fb_clip: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # FAST 진입 시 physical F/T tare에 사용할 sample 개수입니다.
+    ft_tare_N: 30
+
+    # physical F/T data가 이 시간보다 오래되면 feedback을 0으로 처리합니다. 단위는 second입니다.
+    ft_stale_timeout: 0.5
+
+    # physical F/T wrench를 follower base 기준 spatial wrench [Mx,My,Mz,Fx,Fy,Fz]로 변환한 뒤 적용할 부호입니다.
+    ft_feedback_wrench_sign: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # =============================================================================
+    # 9) F/T payload gravity subtraction
+    # =============================================================================
+
+    # F/T sensor 아래 payload 중력 wrench subtraction 사용 여부입니다.
+    # 선택지: true=payload gravity subtraction 사용, false=사용 안 함
+    use_ft_payload_gravity_comp: false
+
+    # 왼팔 F/T payload tree root frame입니다.
+    left_ft_payload_root_frame: "left_hand_base_link"
+
+    # 오른팔 F/T payload tree root frame입니다.
+    right_ft_payload_root_frame: "right_hand_base_link"
+
+    # payload gravity wrench [Fx,Fy,Fz,Mx,My,Mz] 계산값에 적용할 부호입니다.
+    ft_payload_gravity_sign: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    # =============================================================================
+    # 10) Impedance command / workspace limit
+    # =============================================================================
+
+    # 왼팔 impedance controller PoseStamped command topic입니다.
+    left_impedance_topic: "/left_dsr_controller/task_space_command"
+
+    # 오른팔 impedance controller PoseStamped command topic입니다.
+    right_impedance_topic: "/right_dsr_controller/task_space_command"
+
+    # follower workspace와 FK 기준 base frame입니다.
+    impedance_base_frame: "base_link"
+
+    # 왼팔 command PoseStamped header.frame_id로 사용할 frame입니다.
+    left_command_base_frame: "left_base_link"
+
+    # 오른팔 command PoseStamped header.frame_id로 사용할 frame입니다.
+    right_command_base_frame: "right_base_link"
+
+    # task-space position command slew limit입니다. 단위는 mm/s입니다.
+    impedance_linear_speed_mm_s: 300.0
+
+    # task-space orientation command slew limit입니다. 단위는 deg/s입니다.
+    impedance_angular_speed_deg_s: 300.0
+
+    # limiter 초기화 전 첫 publish에서 workspace clip 양이 이 값보다 크면 command를 보내지 않고 경고만 출력합니다.
+    # 0이면 guard를 비활성화합니다. 단위는 mm입니다.
+    impedance_first_publish_clip_guard_mm: 20.0
+
+    # 왼팔 workspace 최소 xyz입니다. arm base가 원점이며 orientation은 world frame이고 단위는 meter입니다.
+    left_workspace_min: [0.00, -0.25, -0.60]
+
+    # 왼팔 workspace 최대 xyz입니다. arm base가 원점이며 orientation은 world frame이고 단위는 meter입니다.
+    left_workspace_max: [0.80,  0.80,  0.40]
+
+    # 오른팔 workspace 최소 xyz입니다. arm base가 원점이며 orientation은 world frame이고 단위는 meter입니다.
+    right_workspace_min: [0.00, -0.4, -0.37]
+
+    # 오른팔 workspace 최대 xyz입니다. arm base가 원점이며 orientation은 world frame이고 단위는 meter입니다.
+    right_workspace_max: [0.80,  0.4,  0.20]
+
+    # =============================================================================
+    # 11) Follower joint state / slow sync / init pose
+    # =============================================================================
+
+    # 왼팔 follower joint state topic입니다.
+    left_follower_state_topic: "/dsr02/joint_states"
+
+    # 오른팔 follower joint state topic입니다.
+    right_follower_state_topic: "/dsr01/joint_states"
+
+    # SLOW sync에서 follower command가 움직일 수 있는 최대 joint 속도입니다. 단위는 deg/s입니다.
+    slow_sync_max_vel_deg_s: 2.0
+
+    # SLOW sync 시작 후 target capture 전 대기 시간입니다. 단위는 second입니다.
+    slow_sync_capture_delay_s: 1.2
+
+    # SLOW sync READY 판정이 유지되어야 하는 시간입니다. 단위는 second입니다.
+    slow_sync_ready_hold_sec: 0.5
+
+    # SLOW sync READY 판정 joint 오차 tolerance입니다. 단위는 degree입니다.
+    slow_sync_ready_tol_deg: 2.0
+
+    # 왼팔 follower legacy home pose입니다. left_follower_init_pose_deg가 없을 때 fallback으로 사용합니다.
+    left_follower_home_deg: [-16.95, -17.39, -80.55, 87.56, -106.59, -8.31]
+
+    # 오른팔 follower init pose입니다. z 키 동작의 목표 pose입니다. 단위는 degree입니다.
+    right_follower_init_pose_deg: [5.5, 52.0, 112.0, 28.0, -107.0, -35.0]
+
+    # z 키 follower init pose 이동 시간입니다. 단위는 second입니다.
+    follower_init_pose_duration_sec: 5.0
+
+    # =============================================================================
+    # 12) CSV logging
+    # =============================================================================
+
+    # CSV movement log 저장 여부입니다.
+    # 선택지: true=CSV 저장, false=CSV 비활성화
+    csv_log_enabled: true
+
+    # CSV movement log 저장 디렉터리입니다.
+    # 상대경로는 실행 위치가 아니라 ft_fb_leaderarm 패키지 루트 기준입니다.
+    # 예: "logs"=<ft_fb_leaderarm>/logs, 절대경로="/tmp/teleop_logs"처럼 쓰면 해당 절대경로에 저장됩니다.
+    csv_log_dir: "logs"

@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from ft_fb_leaderarm.validate_dataset import main
+
+raise SystemExit(main())

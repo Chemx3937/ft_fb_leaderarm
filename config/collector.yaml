@@ -1,0 +1,29 @@
+ft_free_space_collector:
+  ros__parameters:
+    observer_input_topic: /bae_r/observer_input
+    ft_topic: /aft_sensor2/wrench
+    observer_input_frame: right_base_link
+    ft_frame: aft_sensor2
+    output_dir: /home/vision/.ros/ft_fb_leaderarm/data
+    episode_prefix: right_free_space
+    sample_hz: 262.5
+    max_sync_error_ms: 3.0
+    max_source_age_ms: 20.0
+    max_record_gap_ms: 10.0
+    max_duration_s: 300.0
+    minimum_episode_s: 10.0
+    auto_start: false
+
+    # Hardware zero-set 후 launch argument로 true와 고유 ID를 명시한다.
+    zero_set_confirmed: false
+    zero_set_id: ""
+    zero_pose_deg: [5.5, 52.0, 112.0, 28.0, -107.0, -35.0]
+    zero_pose_tolerance_deg: 1.0
+    zero_max_joint_speed_rad_s: 0.02
+    zero_settle_s: 1.0
+    zero_force_norm_max_n: 1.0
+    zero_force_axis_std_max_n: 0.20
+
+    # 실제 장착물과 SBC V2 controller 계약값을 launch argument로 넣는다.
+    payload_id: ""
+    controller_config_hash: ""
