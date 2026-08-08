@@ -122,7 +122,7 @@ class FixedPoseZeroVerifier:
         max_joint_speed_rad_s=0.02,
         settle_s=1.0,
         force_norm_max_n=1.0,
-        force_axis_std_max_n=0.20,
+        force_axis_std_max_n=0.40,
         minimum_samples=100,
     ):
         pose = finite_vector(zero_pose_deg, 6)

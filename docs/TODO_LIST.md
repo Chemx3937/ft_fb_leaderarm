@@ -20,19 +20,38 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 |---|---|---|
 | FT free-space collector | 코드 초안 완료 | 실제 AFT/robot에서 episode 저장 확인 필요 |
 | 고정 자세 zero 검증 | 코드 초안 완료 | 장시간 drift와 반복 tare 실측 필요 |
+| SBC zero-set2 launch | 실제 sensor2 tare/종료 PASS | legacy `aft_zero_set` 교착은 보존, 단일 센서는 zero-set2 사용 |
 | dataset validator | 완료 | 실제 dataset에서 group split report 생성 필요 |
 | 5개 ablation trainer | 완료 | 실제 데이터 학습 결과 없음 |
 | 1 N validation/test gate | 완료 | 실제 승인 모델 없음 |
 | 262.5 Hz benchmark gate | 완료 | target PC 실측 필요 |
+| ObserverInput-AFT 시간 정렬 | latest-only 3 ms gate | 실측 후 필요 시 nearest-state pairing 구현 |
 | FT contact observer | 코드 초안 완료 | 실제 frame/sign/rate/contact SNR 검증 필요 |
 | leader teleoperation | 코드 초안 완료 | feedback 방향과 안정성 실기 검증 필요 |
 | OFF → 40% → 100% 승인 | 완료 | 각 단계 evidence는 아직 없음 |
 | FT 실기 CSV analyzer | 완료 | 실제 threshold baseline 확정 필요 |
 | IL recorder 연동 | interface 준비 | 기존 recorder/GUI와 end-to-end 검증 필요 |
 
+## 다음 실행 작업
+
+기록 시각: `2026-08-08 16:19:11 KST (+0900)`
+
+| 순서 | 담당 | 다음 작업 | 완료 기준 | 상태 |
+|---:|---|---|---|---|
+| 1 | 사용자 | 현재 driver/controller/AFT와 Chrony 상태를 중복 실행 없이 확인 | Chrony `GO`, ObserverInput/AFT topic 정상 | 대기 |
+| 2 | 사용자 | feedback-OFF teleop 실행 후 `INIT POSE → REALIGN` | follower fixed zero pose, Teleop `IDLE` | 대기 |
+| 3 | 사용자 | sensor2 500 Hz one-shot 후 `aft_zero_set2` 실행 | zero-set2 clean exit, cable/tool 무접촉 | 대기 |
+| 4 | 사용자 | FT 전용 GUI를 고유 `zero_set_id`로 실행하고 첫 SLOW 무접촉 episode 수집 | `20~30초`, `accepted=true`, 접촉 0회 | 대기 |
+| 5 | 사용자→검증 | 저장된 `.npz/.json` 경로 확인 및 전달 | sample/sync/metadata 검증 가능 | 대기 |
+
+전체 순서와 명령은 [free-space wrench 데이터 수집 가이드](free_space_wrench_data_collection.md)를
+따른다. 첫 실제 episode 검증이 끝나기 전에는 여러 episode나 FAST 동작으로 확대하지
+않는다.
+
 ## Phase 0: 안전·계약 확정
 
 - [ ] 비상정지와 작업 공간 확인
+- [ ] [PC-SBC 시계 동기화와 FT sample 시간 정렬](timing_sync.md)을 구분해 검증
 - [ ] 오른팔 tool/payload를 고정하고 `payload_id` 확정
 - [ ] impedance controller 설정 hash 확정
 - [ ] AFT sensor frame과 sensor→TCP transform 실측
@@ -41,18 +60,31 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## Phase 1: FT 센서 특성 확인
 
+- [x] 같은 조건의 hardware zero-set 3회 예비 측정 (`FT-20260808-01` OPEN)
+- [x] 수정본을 `aft_zero_set2.py`로 분리하고 격리 회귀 test (`FT-20260808-02` MITIGATED)
+- [x] zero-set2 launch를 단일 `sensor_name` 선택 방식으로 구성, 기본 `aft_sensor2`
+- [x] 설정 zero 자세 재복귀 후 sensor2 zero-set2 수행 (`FT-20260808-03` CLOSED)
 - [ ] 전원 ON 후 0/15/30/60/120분 warm-up drift 기록
 - [ ] 같은 조건에서 hardware zero-set 10회 반복
 - [ ] zero마다 여러 고정 자세 왕복 측정
 - [ ] 재부팅 전후 반복성 확인
 - [ ] 케이블 strain, 온도, EMI, overload 회복 확인
-- [ ] [FT 센서 점검표](FTsensor_check_list.md)에 결과 기록
+- [x] 60초 정지 noise와 raw CAN 실제 갱신률 측정 (`FT-20260808-04` MITIGATED)
+- [x] collector/observer 종료 guard 회귀 테스트와 collector Ctrl-C clean exit (`FT-20260808-05` CLOSED)
+- [x] 현재 driver의 AFT sensor rate를 임시 500 Hz 운용 계약으로 확정
+- [x] 공식 force STD에 맞춰 collector/observer zero gate를 0.40 N으로 변경
+- [ ] 1000 Hz가 필요할 때 CAN drain/read와 configure command를 함께 수정·재측정
+- [x] 현재까지의 rate/noise/gate/smoke 결과를 [FT 센서 점검표](FTsensor_check_list.md)에 기록
 
 ## Phase 2: 데이터 수집
 
+- [x] `/tmp` 정지 smoke episode 저장과 262.5 Hz/gap/sync 검증
 - [ ] 최소 3개 독립 `zero_set_id` 확보
 - [ ] 권장 8~10개 group을 시간대·재기동 조건으로 수집
 - [ ] 각 group에서 저속/고속, 가속/감속, joint/Cartesian 동작 포함
+- [ ] 첫 episode를 zero pose에서 시작한 뒤 leader CURRENT 전환 transient 포함 확인
+- [x] `ft_fb_leaderarm` 전용 GUI에
+  `collector START 성공 → CURRENT → SLOW → 접촉 전 STOP` 순서와 gate 사유를 표시
 - [ ] 모든 episode가 완전 무접촉인지 확인
 - [ ] 접촉 직전에 반드시 collector stop
 - [ ] tool/payload/controller가 바뀐 episode를 분리
@@ -62,6 +94,9 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [ ] `ft_free_space_validate` 실행
 - [ ] rejected episode가 없는지 확인
 - [ ] sample rate, gap, timestamp, frame 확인
+- [ ] 실제 sensor acquisition rate와 ROS publish rate 차이를 metadata/report에 반영
+- [ ] 첫 동적 episode에서 raw와 4 ms causal 평균의 residual/contact latency 비교
+- [ ] [ObserverInput-AFT 시간 정렬 체크리스트](FTsensor_check_list.md#observerinput-aft-시간-정렬-검증과-향후-개선) 측정과 개선 착수 조건 판정
 - [ ] train/validation/test가 `zero_set_id` 단위로 분리됐는지 확인
 - [ ] dataset validation report 보존
 

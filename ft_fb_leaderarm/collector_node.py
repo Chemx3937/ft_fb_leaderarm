@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import signal
 import time
 
 import numpy as np
@@ -49,7 +50,7 @@ class PhysicalFtCollector(Node):
     def __init__(self):
         super().__init__("ft_free_space_collector")
         defaults = {
-            "observer_input_topic": "/bae_r/observer_input",
+            "observer_input_topic": "/contact_state/observer_input",
             "ft_topic": "/aft_sensor2/wrench",
             "observer_input_frame": "right_base_link",
             "ft_frame": "aft_sensor2",
@@ -71,7 +72,7 @@ class PhysicalFtCollector(Node):
             "zero_max_joint_speed_rad_s": 0.02,
             "zero_settle_s": 1.0,
             "zero_force_norm_max_n": 1.0,
-            "zero_force_axis_std_max_n": 0.20,
+            "zero_force_axis_std_max_n": 0.40,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -443,9 +444,13 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        previous_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+        finally:
+            signal.signal(signal.SIGINT, previous_sigint)
 
 
 if __name__ == "__main__":

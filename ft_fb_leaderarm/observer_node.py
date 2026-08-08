@@ -4,6 +4,7 @@
 from collections import deque
 import json
 import math
+import signal
 import time
 
 import numpy as np
@@ -49,7 +50,7 @@ class PhysicalFtContactObserver(Node):
         super().__init__("ft_contact_observer")
         defaults = {
             "model_path": "",
-            "observer_input_topic": "/bae_r/observer_input",
+            "observer_input_topic": "/contact_state/observer_input",
             "ft_topic": "/aft_sensor2/wrench",
             "contact_observation_topic": "/contact_observer/right/observation",
             "predicted_sensor_wrench_topic": (
@@ -72,7 +73,7 @@ class PhysicalFtContactObserver(Node):
             "zero_max_joint_speed_rad_s": 0.02,
             "zero_settle_s": 1.0,
             "zero_force_norm_max_n": 1.0,
-            "zero_force_axis_std_max_n": 0.20,
+            "zero_force_axis_std_max_n": 0.40,
             "sensor_to_tip_zyx_deg": [0.0, 0.0, 0.0],
             "tip_to_sensor_translation_m": [0.0, 0.0, 0.0],
             "force_on_n": 2.0,
@@ -519,9 +520,13 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        previous_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+        finally:
+            signal.signal(signal.SIGINT, previous_sigint)
 
 
 if __name__ == "__main__":

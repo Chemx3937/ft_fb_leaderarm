@@ -1,9 +1,22 @@
+import ast
 from pathlib import Path
 
 import yaml
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_ft_nodes_share_controller_state_topic():
+    topic = "/contact_state/observer_input"
+    for name in ("collector", "observer"):
+        config = yaml.safe_load(
+            (PACKAGE_ROOT / f"config/{name}.yaml").read_text()
+        )
+        parameters = config[next(iter(config))]["ros__parameters"]
+        source = (PACKAGE_ROOT / f"ft_fb_leaderarm/{name}_node.py").read_text()
+        assert parameters["observer_input_topic"] == topic
+        assert f'"observer_input_topic": "{topic}"' in source
 
 
 def test_ft_teleop_is_built_from_local_sources():
@@ -49,6 +62,59 @@ def test_integrated_launch_uses_only_local_teleop_executable():
     assert "scaled_leader_overrides" in launch
     assert 'default_value="0.40"' in launch
     assert "0.20, 0.40, 0.80" not in launch
+
+
+def test_free_space_gui_is_local_and_requires_collection_before_current():
+    path = PACKAGE_ROOT / "scripts/ft_free_space_collection_gui.py"
+    source = path.read_text()
+    tree = ast.parse(source, filename=str(path))
+    helper = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_collector_is_collecting"
+    )
+    namespace = {}
+    exec(
+        compile(
+            ast.fix_missing_locations(
+                ast.Module(body=[helper], type_ignores=[])),
+            str(path), "exec"),
+        namespace,
+    )
+    is_collecting = namespace["_collector_is_collecting"]
+    assert is_collecting({"collecting": True})
+    assert not is_collecting({"collecting": False})
+    assert not is_collecting(None)
+    assert 'collector = "/ft_free_space_collector/"' in source
+    assert '"1": collector+"start_episode"' in source
+    assert '"2": collector+"stop_episode"' in source
+    assert 'if key == "1" and (not teleop_fresh or teleop_state != "IDLE"):' in source
+    assert 'if key in ("c", "t", "o") and (' in source
+    assert "Teleoperation 차단" in source
+    assert "/chem_acp_raw_data_collection" not in source
+    assert "/bae_r/observer_input" not in source
+    imported_modules = {
+        imported.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for imported in node.names
+    }
+    imported_modules.update(
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    )
+    assert not any(
+        module == "fb_leaderarm" or module.startswith("fb_leaderarm.")
+        for module in imported_modules
+    )
+
+    cmake = (PACKAGE_ROOT / "CMakeLists.txt").read_text()
+    launch = (PACKAGE_ROOT / "launch/collect_free_space_gui.launch.py").read_text()
+    assert "scripts/ft_free_space_collection_gui.py" in cmake
+    assert 'package="ft_fb_leaderarm"' in launch
+    assert 'executable="ft_free_space_collection_gui.py"' in launch
+    assert 'package="fb_leaderarm"' not in launch
 
 
 def test_ft_feedback_csv_contains_automatic_analysis_contract():

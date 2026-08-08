@@ -19,8 +19,8 @@ ft_fb_leaderarm : physical FT raw wrench - physical FT free-space prediction
 |---|---|---|---|
 | 목적 | JTS 추정 wrench의 free-space 성분 제거 | 물리 AFT의 free-space 성분 제거 | FT 모델은 실제 센서 noise·drift까지 학습해야 함 |
 | 대상 팔 | 오른팔 중심 V2 workflow | 오른팔만 허용 | FT dataset에 왼팔 데이터를 섞을 수 없음 |
-| raw wrench | `/bae_r/observer_input.measured_wrench` 또는 `/bae_r/F_e` 계열 | `/aft_sensor2/wrench` | FT 장착, 케이블, 온도, tare가 성능에 직접 영향 |
-| robot state | `/bae_r/observer_input` | `/bae_r/observer_input` | q, dq, current pose와 source timestamp 계약은 유지 |
+| raw wrench | `/contact_state/observer_input.measured_wrench` 또는 `/bae_r/F_e` 계열 | `/aft_sensor2/wrench` | FT 장착, 케이블, 온도, tare가 성능에 직접 영향 |
+| robot state | `/contact_state/observer_input` | `/contact_state/observer_input` | q, dq, current pose와 source timestamp 계약은 유지 |
 | 학습 입력 | q, dq, qdd와 V2 보정 문맥 | q, dq, causal qdd만 | contact leakage 가능성이 있는 measured wrench/task error를 입력에서 제외 |
 | 학습 target | JTS free-space wrench | sensor-frame physical FT 6축 wrench | 두 모델 artifact는 교환할 수 없음 |
 | zero | V2 runtime baseline/residual 보정 포함 | 고정 초기 자세 hardware AFT zero-set 필수 | online bias가 실제 contact를 흡수할 위험은 줄고 zero 반복성 의존은 증가 |
@@ -36,6 +36,7 @@ ft_fb_leaderarm : physical FT raw wrench - physical FT free-space prediction
 | gain 단계 | 기존 V2 다단계 | OFF → 40% → 100% | 20%와 80% 단계는 FT workflow에서 사용하지 않음 |
 | 단계 승인 | V2 evidence/authorization | FT CSV analyzer report와 이전 승인 hash 결합 | raw CSV가 분석 후 바뀌면 다음 launch가 거부됨 |
 | 실기 분석 | V2 Observer NPZ/Leader CSV 계약 | 확장된 FT Leader CSV 하나를 분석 | 실제 gain stage, false contact, 최대 force/torque, pose jump, vibration 지표 자동 계산 |
+| 수집 GUI | IL recorder와 contact observer 중심 | FT collector zero gate/START/STOP 중심의 자체 복제본 | FT GUI는 `fb_leaderarm`를 import하거나 그 service를 호출하지 않음 |
 | 원본 코드 영향 | 기준 패키지 | 별도 패키지 | `fb_leaderarm` 원본은 수정하지 않음 |
 
 ## 같은 부분
@@ -71,6 +72,17 @@ free-space wrench로 예측하여 residual을 지울 수 있기 때문이다.
 100% authorization은 같은 모델의 40% 실기 로그 분석과 40% authorization을
 모두 다시 검증한다. 자동 analyzer가 feedback 방향의 물리적 옳고 그름까지
 판단할 수는 없으므로 방향은 운영자가 직접 확인하고 attestation한다.
+
+### GUI 소유권과 수집 순서
+
+`scripts/ft_free_space_collection_gui.py`는 `fb_leaderarm`의 검증된 GUI 화면 구조를
+복제한 뒤 `ft_fb_leaderarm` 내부 코드로 분리했다. 실행 launch와 import, collector
+service는 모두 `ft_fb_leaderarm`만 사용하며 원본 파일은 수정하지 않는다.
+
+FT GUI는 Teleop 상태 `IDLE`, Zero Gate `VERIFIED`, FT Collector `RECORDING` 순서를
+표시한다. START 성공 전에는 CURRENT/SLOW/FAST를 차단하고 수집 중에는 zero 상태를
+`LATCHED`로 표시한다. 이는 CURRENT 전환 순간 발생하는 작은 follower 움직임도
+free-space episode 안에 포함하기 위한 순서다.
 
 ## 관련 문서
 

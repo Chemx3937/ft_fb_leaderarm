@@ -5,7 +5,7 @@
 아래 명령은 오른팔, 현재 payload/controller 계약을 기준으로 한다. 장비 설정이
 다르면 그대로 실행하지 말고 값을 먼저 바꾼다. **새 PC 터미널을 열 때마다**
 아래 블록 전체를 먼저 실행한다. 이 설정이 빠지면 SBC에서 발행하는
-`/bae_r/observer_input`과 `/aft_sensor2/wrench`가 PC에서 보이지 않을 수 있다.
+`/contact_state/observer_input`과 `/aft_sensor2/wrench`가 PC에서 보이지 않을 수 있다.
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -44,9 +44,9 @@ controlled-contact 실험과 단계 승인을 진행하지 않는다.
 PC에서 두 입력 topic이 실제로 발견되는지 먼저 확인한다.
 
 ```bash
-ros2 topic info /bae_r/observer_input --verbose
+ros2 topic info /contact_state/observer_input --verbose
 ros2 topic info /aft_sensor2/wrench --verbose
-timeout 15s ros2 topic hz /bae_r/observer_input
+timeout 15s ros2 topic hz /contact_state/observer_input
 timeout 15s ros2 topic hz /aft_sensor2/wrench
 ```
 
@@ -81,14 +81,23 @@ ft_free_space_train
 ft_free_space_validate
 ```
 
-소스 단위 테스트는 PyTorch가 있는 `venv_act`와 시스템 pytest를 함께 써야
-한다. 이 PC의 venv에는 `pytest` 실행 파일이 따로 없으므로 다음처럼 실행한다.
+단위 테스트는 시스템 pytest와 `venv_act`의 PyTorch를 함께 사용한다. 기존
+CMake cache가 venv Python을 기억할 수 있으므로 system Python을 명시해 다시
+구성한 뒤 `colcon test`로 실행한다.
 
 ```bash
-cd /home/vision/dualarm_ws/src/ft_fb_leaderarm
-export PYTHONPATH=/home/vision/venv_act/lib/python3.10/site-packages:/usr/lib/python3/dist-packages:${PYTHONPATH}
-export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
-/home/vision/venv_act/bin/python3 -m pytest -q -p no:cacheprovider
+cd /home/vision/dualarm_ws
+source /opt/ros/humble/setup.bash
+source /home/vision/contact_pipeline_ws/install/setup.bash
+
+colcon build --symlink-install --packages-select ft_fb_leaderarm \
+  --cmake-force-configure \
+  --cmake-args -DBUILD_TESTING=ON -DPython3_EXECUTABLE=/usr/bin/python3
+
+source /home/vision/dualarm_ws/install/setup.bash
+export PYTHONPATH=/home/vision/venv_act/lib/python3.10/site-packages:${PYTHONPATH}
+colcon test --packages-select ft_fb_leaderarm
+colcon test-result --verbose
 ```
 
 ## 2. SBC: robot driver
@@ -137,14 +146,14 @@ ros2 launch dsr_realtime_control \
   impedance_control_vr_dls_f_comp_bae_r_v2.launch.py
 ```
 
-`/bae_r/observer_input`을 확인한다.
+`/contact_state/observer_input`을 확인한다.
 
 ```bash
 ros2 param get /TorqueRtR control.enable_observer_input_publish
 ros2 param get /TorqueRtR control.observer_input_frame_id
-ros2 topic info /bae_r/observer_input --verbose
-timeout 15s ros2 topic hz /bae_r/observer_input
-ros2 topic echo /bae_r/observer_input --once
+ros2 topic info /contact_state/observer_input --verbose
+timeout 15s ros2 topic hz /contact_state/observer_input
+ros2 topic echo /contact_state/observer_input --once
 ```
 
 ## 4. SBC: AFT ON과 hardware zero-set
@@ -153,7 +162,7 @@ SBC 터미널 3에서 AFT를 실행한다.
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /home/vision/dualarm_ws/install/setup.bash
+source /home/vision/doosan_ws/install/setup.bash
 
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=7
@@ -161,6 +170,9 @@ export ROS_LOCALHOST_ONLY=0
 
 ros2 launch aft_can_hardware aft_sensor.launch.py
 ```
+
+이 명령은 AFT 통신을 시작하지만 hardware zero-set을 수행하지 않는다. driver의
+`on_configure()`에 있는 `bias_setting_mode(true)` 반환값은 CAN으로 전송되지 않는다.
 
 오른팔을 다음 자세로 이동하고 완전 정지·무접촉인지 확인한다.
 
@@ -172,12 +184,44 @@ ros2 launch aft_can_hardware aft_sensor.launch.py
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /home/vision/dualarm_ws/install/setup.bash
+source /home/vision/doosan_ws/install/setup.bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=7
 export ROS_LOCALHOST_ONLY=0
 
+ros2 topic info /aft_sensor2/bias_setting --verbose
+ros2 launch aft_can_hardware aft_zero_set2.launch.py \
+  sensor_name:=aft_sensor2
+```
+
+`bias_setting`의 subscriber가 정확히 1개인지 확인한다. launch는 오른팔 wrench
+100개를 받은 뒤 `Bool(data=true)`를 한 번 발행하고 종료한다. 정상 로그는
+`Hardware bias (tare) requested and acknowledged`와
+`Zero set completed. Exiting after callback.`이다. ACK는 DDS subscriber 전달만
+뜻하므로 아래 wrench 검증도 반드시 수행한다. subscriber가 없다는 오류가 나오거나
+node가 종료되지 않으면 Ctrl-C하고 반복 실행하지 않는다.
+
+2026-08-08 수정본은 `aft_zero_set2`로 분리했다. callback 내부 ROS shutdown
+교착을 제거하고 한 센서만 실행한다. 격리 회귀 테스트와 실제 오른팔 tare 후
+clean exit(`RC=0`)를 확인했다. 기존 `aft_zero_set` script/launch는 기존 자동화
+호환을 위해 원본 그대로 유지한다.
+
+기존 명령은 다음과 같이 계속 실행할 수 있다.
+
+```bash
 ros2 launch aft_can_hardware aft_zero_set.launch.py
+```
+
+legacy launch는 sensor1/2를 동시에 실행하며 bias 후 node가 종료되지 않는 기존
+동작도 그대로다. 단일 오른팔 zero와 자동 종료가 필요하면 `aft_zero_set2`를
+사용한다.
+
+zero-set2 launch 자체의 문제를 분리 진단해야 할 때만 다음 직접 명령을 한 번
+사용한다.
+
+```bash
+ros2 topic pub --once /aft_sensor2/bias_setting std_msgs/msg/Bool \
+  "{data: true}"
 ```
 
 출력을 확인한다.
@@ -188,18 +232,54 @@ timeout 15s ros2 topic hz /aft_sensor2/wrench
 ros2 topic echo /aft_sensor2/wrench --once
 ```
 
+`--once` 출력은 통신·frame 확인용일 뿐 zero 품질 판정값이 아니다. zero-set 후
+최소 3초 기다리고, collector diagnostics의 최근 1초 `force_median_n`,
+`force_std_n`, `ready`, `reason`을 여러 번 확인한다. 현재 기준은 force median
+norm 1.0 N 이하와 각 축 std 0.40 N 이하이다. 이 값은 공식 AFT force
+noise-free resolution(STD)에 맞춘 것이다. 변경 근거와 영향은
+[AFT 센서 이슈](AFT_sensor_issue.md), 측정값은 [FT sensor 확인 목록](FTsensor_check_list.md)과
+[FT-20260808-01](failure_log.md#ft-20260808-01-fz-zero-반복성과-정지-noise)을
+먼저 확인한다.
+
+현재 실측에서는 ROS topic은 약 1000 Hz지만 raw CAN의 새 force/torque 쌍은 약
+500 Hz이고 연속 force 값 약 50%가 중복된다. sensor2 설정은 `sample_rate: 500`으로
+맞췄지만 driver 초기화에서는 아직 실제 CAN으로 전송되지 않는다. collector의 목표 262.5 Hz에는 부족하지
+않지만 동적 timestamp 검증 전에는 이를 1000 Hz 실측 데이터로 해석하지 않는다.
+현재 driver는 CAN frame을 controller cycle당 하나만 읽으므로 실제 500 Hz를 임시
+운용 계약으로 사용한다. 공식 센서 사양상 1000 Hz는 가능하지만 sample당
+force/torque 두 frame이어서 driver read 경로 수정 없이 올리면 backlog 위험이 있다.
+`/aft_sensor2/sample_rate_setting`을 임의 발행하지 말고
+[FT-20260808-04](failure_log.md#ft-20260808-04-aft-sample-rate-설정과-실제-갱신률-불일치)의
+rate 계약을 먼저 확정한다.
+
+AFT를 새로 시작한 뒤 sensor2 rate를 명시적으로 적용할 때는 다음을 한 번 실행하고
+raw CAN pair 주기가 약 2 ms인지 확인한다.
+
+```bash
+ros2 topic pub --once /aft_sensor2/sample_rate_setting \
+  std_msgs/msg/Int32 "{data: 500}"
+```
+
 ## 5. PC: free-space 데이터 수집
 
 ### 5.1 Collector
 
 zero-set을 실제로 새로 할 때마다 새로운 `zero_set_id`를 사용한다.
 
+`payload_id`는 같은 tool/질량/질량중심 조합을 식별하는 사람이 정한 이름이다.
+`controller_config_hash`는 사용한 impedance controller 코드·설정의 지문이다. 둘 다
+robot 명령이 아니라 episode metadata이며, 값이 다른 데이터를 한 모델에 섞지 않기
+위해 필요하다. 두 값을 전달해도 payload나 controller 설정은 변경되지 않는다. 현재는
+기존에 사용하던 payload와 controller 설정을 그대로 유지하고, 그 상태를 위의
+`FT_PAYLOAD_ID`와 `FT_CONTROLLER_HASH`로 기록한다. 실제 값이 현재 설정과 일치하는지
+읽기 전용으로 확인하기 전에는 정식 output directory에 수집하지 않는다.
+
 ```bash
 source /opt/ros/humble/setup.bash
 source /home/vision/dualarm_ws/install/setup.bash
 source /home/vision/venv_act/bin/activate
 
-ros2 launch ft_fb_leaderarm collect_free_space.launch.py \
+ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py \
   output_dir:="${FT_DATA_DIR}" \
   zero_set_confirmed:=true \
   zero_set_id:=tare_YYYYMMDD_01 \
@@ -207,11 +287,15 @@ ros2 launch ft_fb_leaderarm collect_free_space.launch.py \
   controller_config_hash:="${FT_CONTROLLER_HASH}"
 ```
 
+이 명령은 `ft_fb_leaderarm`가 자체 소유하는 collector와 FT 전용 GUI만 실행한다.
+teleop이나 robot/leader 이동은 자동 실행하지 않는다. GUI 없이 터미널만 사용할
+때는 launch 파일 이름만 `collect_free_space.launch.py`로 바꾼다.
+
 `YYYYMMDD`는 실제 날짜로 교체한다. launch 인자만 확인하려면 collector에
 `--ros-args --help`를 붙이지 말고 다음 명령을 사용한다.
 
 ```bash
-ros2 launch ft_fb_leaderarm collect_free_space.launch.py --show-args
+ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py --show-args
 ```
 
 ### 5.2 학습 전 feedback-OFF teleoperation
@@ -223,25 +307,69 @@ feedback source OFF로 실행한다.
 ros2 run ft_fb_leaderarm ft_fb_leader_single_impedance_teleop --ros-args \
   --params-file "${FT_PACKAGE_ROOT}/config/single_impedance_leader_damping.yaml" \
   -p side:=right \
-  -p feedback_source:=off
+  -p feedback_source:=off \
+  -p keyboard_input_enabled:=false
 ```
 
-CURRENT → SLOW → FAST로 전환하고 collector episode를 시작한다.
+FT 전용 GUI 절차에서는 terminal key가 GUI의 순서 guard를 우회하지 않도록
+`keyboard_input_enabled=false`를 사용한다. GUI 없이 terminal key로 운용할 때만 이
+override를 제거한다.
+
+leader는 기존 안전 절차에 따라 position mode에서 follower의 fixed zero pose에
+정렬하되 아직 CURRENT로 전환하지 않는다. follower가 fixed zero pose에서
+`zero_verified`인지 확인한 뒤 먼저 collector episode를 시작한다.
+
+gate가 실패해도 zero-set, AFT publish 또는 robot이 차단되는 것은 아니다. 아래의
+**새 수집 시작 요청만 거부**되고 collector는 계속 실행된다. 먼저 diagnostics를
+확인하고, 바로 아래의 start service는 한 번만 호출한다. service 응답과 diagnostics
+두 경로에 차단 이유가 표시된다.
+
+```bash
+ros2 topic echo /ft_free_space_collector/diagnostics --once
+```
+
+median norm이 `1.0 N`을 넘은 경우 service 출력 예시는 다음과 같다.
+
+```text
+response:
+std_srvs.srv.Trigger_Response(success=False,
+  message='fixed-pose zero verification failed: zero_force_offset_too_large')
+```
+
+diagnostics의 핵심은 `"collecting": false`,
+`"zero": {"ready": false, "reason": "zero_force_offset_too_large", ...}`다.
+반대로 start가 성공하면 `success: true`, `episode started`가 출력된다.
 
 ```bash
 ros2 service call /ft_free_space_collector/start_episode \
   std_srvs/srv/Trigger {}
 ```
 
-로봇을 완전 무접촉 상태로 다양하게 움직인 뒤 접촉 전에 중지한다.
+start 성공 후에만 운용자가 leader를 CURRENT로 전환한다. 전환 순간 leader pose가
+조금 달라져 follower가 움직이는 구간도 실제 free-space transient로 기록한다. 첫
+episode는 SLOW에서 20~30초 무접촉 동작만 수행하고 접촉 전에 중지한다. robot 또는
+leader를 움직이는 조작은 운용자만 실행한다.
+
+FT 전용 GUI의 `START FT EPISODE (1)`와 `STOP FT EPISODE (2)`는 각각 위의
+`/ft_free_space_collector/start_episode`, `stop_episode`를 호출한다. START 실패
+사유는 경고 팝업과 Problem Logs에 표시된다. START 성공 후 diagnostics에서
+`collecting=true`가 확인되어 FT Collector 배지가 `RECORDING`이 되기 전까지 GUI는
+CURRENT/SLOW/FAST 요청을 차단한다. 또한 Teleop 상태가 position 정렬 완료인 `IDLE`이
+아니면 START를 차단한다. 수집 중에는 Zero Gate 배지를 `LATCHED`로 표시하며, 이는
+zero pose를 벗어나도 이미 승인된 episode가 계속 기록된다는 뜻이다.
+
+이 GUI는 복제 원본인 `fb_leaderarm` GUI를 import하거나 실행하지 않는다. 소스와
+launch, service 연결은 모두 `ft_fb_leaderarm` 내부에 있다.
 
 ```bash
 ros2 service call /ft_free_space_collector/stop_episode \
   std_srvs/srv/Trigger {}
 ```
 
-같은 zero-set에서 여러 episode를 수집할 수 있다. 다른 zero group은 초기
-자세로 복귀하여 AFT zero-set을 다시 실행하고 collector를 새 ID로 재실행한다.
+같은 zero-set에서 여러 episode를 수집할 때도 현재 구현은 매 `start_episode` 순간
+follower가 fixed zero pose로 복귀해 zero gate를 다시 통과해야 한다. 복귀하지 않고
+여러 구간을 기록하려면 한 episode를 계속 유지한다. 다른 zero group은 fixed pose로
+복귀하여 AFT zero-set을 다시 실행하고 collector를 새 ID로 재실행한다.
 
 ```text
 tare_YYYYMMDD_01
@@ -527,7 +655,7 @@ topic으로 발행하면 안 된다.
 ```bash
 ros2 topic info /contact_observer/right/observation --verbose
 ros2 topic info /aft_sensor2/wrench --verbose
-ros2 topic info /bae_r/observer_input --verbose
+ros2 topic info /contact_state/observer_input --verbose
 ```
 
 확인해야 할 source는 다음과 같다.
@@ -535,7 +663,7 @@ ros2 topic info /bae_r/observer_input --verbose
 ```text
 physical raw FT : /aft_sensor2/wrench
 contact residual: /contact_observer/right/observation
-robot state     : /bae_r/observer_input
+robot state     : /contact_state/observer_input
 ```
 
 작은 IL test episode를 먼저 저장하여 timestamp, frame, model hash, raw/predicted/

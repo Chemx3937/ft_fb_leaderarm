@@ -17,10 +17,13 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
 
 - [전체 순서](docs/flow.md)
 - [실행 명령](docs/command.md)
+- [GUI 기반 free-space wrench 데이터 수집](docs/free_space_wrench_data_collection.md)
 - [구현 목표와 TODO](docs/TODO_LIST.md)
+- [PC-SBC 시계 동기화와 FT sample 시간 정렬](docs/timing_sync.md)
 - [학습 구조와 ablation](docs/base_architecture.md)
 - [fb_leaderarm과의 비교](docs/compare%20ft_fb_leaderarm%20and%20fb_leader%20arm.md)
 - [FT 센서 점검표](docs/FTsensor_check_list.md)
+- [AFT 센서 사양과 현재 이슈](docs/AFT_sensor_issue.md)
 - [실패·문제 기록](docs/failure_log.md)
 
 ## 문제 정의: 육하원칙
@@ -29,17 +32,17 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
 |---|---|
 | 누가 | 일반 PC의 `ft_free_space_collect`, `ft_free_space_train`, `ft_contact_observer` |
 | 언제 | 오른팔 follower가 고정 초기 자세에 있고 AFT가 무접촉 zero-set된 뒤 |
-| 어디서 | `/bae_r/observer_input`, `/aft_sensor2/wrench`, `/contact_observer/right/observation` |
+| 어디서 | `/contact_state/observer_input`, `/aft_sensor2/wrench`, `/contact_observer/right/observation` |
 | 무엇을 | `[q,dq,causal-qdd]`와 물리 FT `[Fx,Fy,Fz,Mx,My,Mz]` |
 | 어떻게 | 독립 zero-set group 분할, 5개 ablation, held-out 최대 force-vector 오차 gate |
 | 왜 | 기존 JTS `external_tcp_force` target에 있던 관측 불가능한 1 N 이상 drift를 물리 FT 직접 계측으로 분리하기 위해 |
 
 ```text
-/bae_r/observer_input ─┐
+/contact_state/observer_input ─┐
                        ├─ collector ─ NPZ episodes ─ ablation trainer ─ model.ts
 /aft_sensor2/wrench ───┘                                      │
                                                               ▼ 262.5 Hz
-/bae_r/observer_input ─┐                              ft_contact_observer
+/contact_state/observer_input ─┐                              ft_contact_observer
 /aft_sensor2/wrench ───┘                                      │
                        ┌───────────────────────────────────────┼──────────────┐
                        ▼                                       ▼              ▼
@@ -93,26 +96,38 @@ SBC에서 기존과 동일하게 Doosan driver, V2 impedance controller,
 한 번 실행한다.
 
 ```bash
-ros2 launch aft_can_hardware aft_zero_set.launch.py
+ros2 launch aft_can_hardware aft_zero_set2.launch.py \
+  sensor_name:=aft_sensor2
 ```
+
+zero-set2 launch는 오른팔에 hardware tare를 한 번 요청하고 정상 전달 뒤 종료한다.
+AFT driver ON만으로는 zero-set되지 않는다. 현재 관절각이 위 기준 자세와 1 deg
+이내인지 먼저 확인한다. zero-set 직후 한 sample만 보고 영점을 판정하지 않는다.
+최소 5초 구간의
+축별 median과 표준편차를 확인하고, 독립 zero-set마다 새 `zero_set_id`를 사용한다.
+자세 불일치나 launch 실패 시에는 [실행 절차](docs/command.md#4-sbc-aft-on과-hardware-zero-set)를
+따른다.
 
 각 실제 zero-set마다 중복되지 않는 `zero_set_id`를 만들고 collector를
 실행한다.
 
 ```bash
-ros2 launch ft_fb_leaderarm collect_free_space.launch.py \
+ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py \
   zero_set_confirmed:=true \
   zero_set_id:=tare_20260806_01 \
   payload_id:=right_tool_m2p1kg_oz0p17m_v1 \
   controller_config_hash:=bae_r_v2_c113eabf7e13_ca07ae197213
 ```
 
-collector는 고정 자세, joint 정지, 1초 연속 FT 안정성, frame, timestamp
-동기화를 확인하기 전에는 시작을 거부한다.
+이 launch는 `ft_fb_leaderarm`가 자체 소유하는 FT collector와 GUI만 실행한다.
+teleop이나 robot 이동은 자동 실행하지 않는다. GUI는 고정 자세, joint 정지,
+1초 연속 FT 안정성, frame, timestamp 동기화가 확인되기 전 START를 거부한 이유를
+Zero Gate 배지와 팝업으로 표시한다.
 
 ```bash
+# GUI: START FT EPISODE → CURRENT → SLOW 무접촉 → 접촉 전 STOP FT EPISODE
+# 같은 service를 터미널에서 직접 호출해도 된다.
 ros2 service call /ft_free_space_collector/start_episode std_srvs/srv/Trigger {}
-# Leader로 follower를 움직이되 episode 전체가 반드시 무접촉이어야 한다.
 ros2 service call /ft_free_space_collector/stop_episode std_srvs/srv/Trigger {}
 ```
 
@@ -259,9 +274,10 @@ report와 authorization은 raw CSV까지 hash로 묶으므로 분석 후 파일�
 
 IL recorder의 기존 source 계약도 유지된다.
 
-- physical raw FT: `/aft_sensor2/wrench`, sensor frame, 262.5 Hz
+- physical raw FT: `/aft_sensor2/wrench`, sensor frame, 1 kHz publish
+- collector/runtime 처리율: 262.5 Hz
 - contact 상태/residual: `/contact_observer/right/observation`, base frame
-- controller state: `/bae_r/observer_input`
+- controller state: `/contact_state/observer_input`
 
 동일한 `/contact_observer/right/observation`에 기존
 `contact_observer_node.py`와 새 `ft_contact_observer`를 동시에 실행하면

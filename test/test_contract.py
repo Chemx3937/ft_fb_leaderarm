@@ -48,6 +48,19 @@ def test_fixed_pose_zero_verifier_accepts_stable_zero_and_rejects_motion():
     assert verifier.status()[0] is False
 
 
+def test_default_zero_verifier_accepts_aft_force_std_below_0p4_n():
+    verifier = FixedPoseZeroVerifier(settle_s=0.1, minimum_samples=8)
+    q = np.deg2rad(DEFAULT_ZERO_POSE_DEG)
+    for index in range(12):
+        ready = verifier.update(
+            1.0 + 0.01 * index,
+            q,
+            np.zeros(6),
+            np.asarray([0.3 if index % 2 else -0.3, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        )
+    assert ready
+
+
 def test_ablation_projection_shapes():
     windows = np.zeros((5, 16, BASE_FEATURE_DIM), dtype=np.float32)
     assert project_feature_windows(windows[:, -1:], "static").shape == (5, 12)

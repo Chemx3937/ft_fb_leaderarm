@@ -141,6 +141,7 @@ install(PROGRAMS
   scripts/ft_contact_observer
   scripts/ft_feedback_analyze
   scripts/ft_feedback_authorize
+  scripts/ft_free_space_collection_gui.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -151,5 +152,10 @@ install(DIRECTORY config launch docs
 install(FILES README.md
   DESTINATION share/${PROJECT_NAME}
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(${PROJECT_NAME}_pytest test TIMEOUT 180)
+endif()
 
 ament_package()

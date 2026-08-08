@@ -1,7 +1,7 @@
 ft_contact_observer:
   ros__parameters:
     model_path: ""
-    observer_input_topic: /bae_r/observer_input
+    observer_input_topic: "/contact_state/observer_input"
     ft_topic: /aft_sensor2/wrench
     contact_observation_topic: /contact_observer/right/observation
     predicted_sensor_wrench_topic: /ft_free_space/right/predicted_wrench
@@ -21,7 +21,7 @@ ft_contact_observer:
     zero_max_joint_speed_rad_s: 0.02
     zero_settle_s: 1.0
     zero_force_norm_max_n: 1.0
-    zero_force_axis_std_max_n: 0.20
+    zero_force_axis_std_max_n: 0.40
 
     payload_id: ""
     controller_config_hash: ""

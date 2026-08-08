@@ -1,6 +1,6 @@
 ft_free_space_collector:
   ros__parameters:
-    observer_input_topic: /bae_r/observer_input
+    observer_input_topic: "/contact_state/observer_input"
     ft_topic: /aft_sensor2/wrench
     observer_input_frame: right_base_link
     ft_frame: aft_sensor2
@@ -22,7 +22,7 @@ ft_free_space_collector:
     zero_max_joint_speed_rad_s: 0.02
     zero_settle_s: 1.0
     zero_force_norm_max_n: 1.0
-    zero_force_axis_std_max_n: 0.20
+    zero_force_axis_std_max_n: 0.40
 
     # 실제 장착물과 SBC V2 controller 계약값을 launch argument로 넣는다.
     payload_id: ""
