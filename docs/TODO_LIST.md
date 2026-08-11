@@ -34,15 +34,16 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## 다음 실행 작업
 
-기록 시각: `2026-08-08 16:19:11 KST (+0900)`
+기록 시각: `2026-08-11 11:40:33 KST (+0900)`
 
 | 순서 | 담당 | 다음 작업 | 완료 기준 | 상태 |
 |---:|---|---|---|---|
-| 1 | 사용자 | 현재 driver/controller/AFT와 Chrony 상태를 중복 실행 없이 확인 | Chrony `GO`, ObserverInput/AFT topic 정상 | 대기 |
-| 2 | 사용자 | feedback-OFF teleop 실행 후 `INIT POSE → REALIGN` | follower fixed zero pose, Teleop `IDLE` | 대기 |
-| 3 | 사용자 | sensor2 500 Hz one-shot 후 `aft_zero_set2` 실행 | zero-set2 clean exit, cable/tool 무접촉 | 대기 |
-| 4 | 사용자 | FT 전용 GUI를 고유 `zero_set_id`로 실행하고 첫 SLOW 무접촉 episode 수집 | `20~30초`, `accepted=true`, 접촉 0회 | 대기 |
-| 5 | 사용자→검증 | 저장된 `.npz/.json` 경로 확인 및 전달 | sample/sync/metadata 검증 가능 | 대기 |
+| 1 | 사용자 | 현재 driver/controller/AFT와 Chrony 상태를 중복 실행 없이 확인 | Chrony `GO`, ObserverInput/AFT topic 정상 | 완료: 두 topic 1 publisher/약 1000 Hz, Chrony bound `0.041132 ms`, `GO` |
+| 2 | 사용자 | AFT를 이번에 시작한 뒤 sensor2 500 Hz one-shot 실행 | 명령 1회 정상 발행 | 대기 |
+| 3 | 사용자 | feedback-OFF teleop 실행 후 `INIT POSE → REALIGN` | follower fixed zero pose, Teleop `IDLE` | 대기 |
+| 4 | 사용자 | cable/tool 무접촉 상태에서 `aft_zero_set2` 실행 | zero-set2 clean exit | 대기 |
+| 5 | 사용자 | FT 전용 GUI를 고유 `zero_set_id`로 실행하고 첫 SLOW 무접촉 episode 수집 | `20~30초`, `accepted=true`, 접촉 0회 | 대기 |
+| 6 | 사용자→검증 | 저장된 `.npz/.json` 경로 확인 및 전달 | sample/sync/metadata 검증 가능 | 대기 |
 
 전체 순서와 명령은 [free-space wrench 데이터 수집 가이드](free_space_wrench_data_collection.md)를
 따른다. 첫 실제 episode 검증이 끝나기 전에는 여러 episode나 FAST 동작으로 확대하지

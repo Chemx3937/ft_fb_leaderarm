@@ -37,8 +37,32 @@
 | `FT-20260808-03` | 2026-08-08 | `OPS` | Phase 1 | 현재 로봇 자세가 zero/model 기준 자세와 불일치 | `CLOSED` | [상세](#ft-20260808-03-zero-기준-자세-불일치) |
 | `FT-20260808-04` | 2026-08-08 | `SYNC` | Phase 1 | 설정 1000 Hz와 실제 wrench 갱신 약 500 Hz 불일치 | `MITIGATED` | [상세](#ft-20260808-04-aft-sample-rate-설정과-실제-갱신률-불일치) |
 | `FT-20260808-05` | 2026-08-08 | `RUNTIME` | Phase 1 | launch Ctrl-C 시 collector cleanup이 두 번째 SIGINT로 중단 | `CLOSED` | [상세](#ft-20260808-05-ros-launch-종료-중복-sigint) |
+| `FT-20260811-01` | 2026-08-11 | `OPS` | Phase 0 | 수집 가이드의 Chrony 상대경로가 현재 작업 디렉터리에서 실패 | `CLOSED` | [상세](#ft-20260811-01-chrony-helper-경로-오류) |
 
 새 실패는 기존 행을 보존하고 `FT-YYYYMMDD-NN` 형식의 새 행으로 추가한다.
+
+## FT-20260811-01: Chrony helper 경로 오류
+
+- 상태: CLOSED
+- 분류: OPS
+- 누가: free-space 데이터 수집 절차를 수행한 운용자
+- 언제: 2026-08-11 11:40 KST, 실제 장비 입력 상태 확인 단계
+- 어디서: PC의 `/home/vision/dualarm_ws/src/ft_fb_leaderarm`
+- 무엇을: 가이드의 `./scripts/dualarm_chrony_mode.sh status`가
+  `No such file or directory`로 실패했다.
+- 왜: helper는 `fb_leaderarm/scripts`에 있는데 가이드는 `ft_fb_leaderarm`로 이동한
+  뒤 해당 상대경로를 실행하도록 적혀 있었다.
+- 어떻게: Chrony 명령은 실행되지 않았지만 ObserverInput과 AFT wrench는 각각
+  publisher 1개, 약 1000 Hz로 정상 수신됐다.
+
+### 조치와 영향
+
+- 수집 가이드의 명령을 기존 helper의 절대경로로 수정했다.
+- `fb_leaderarm` 코드와 Chrony helper 자체는 수정하지 않았다.
+- 영향은 Chrony 상태 확인 명령에만 한정되며 robot, controller, AFT 발행과 수집
+  설정은 바뀌지 않는다.
+- 절대경로로 재실행하여 SBC source `192.168.112.17`이 `^*`, direct relative bound
+  `0.041132 ms <= 1.0 ms`, `valid=true`, 최종 `GO`임을 확인하고 종료했다.
 
 ## FT-20260808-01: Fz zero 반복성과 정지 noise
 

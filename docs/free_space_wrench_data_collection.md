@@ -81,7 +81,7 @@ topic에 publisher가 있어야 한다.
 ```bash
 cd /home/vision/dualarm_ws/src/ft_fb_leaderarm
 sudo -v
-./scripts/dualarm_chrony_mode.sh status
+/home/vision/dualarm_ws/src/fb_leaderarm/scripts/dualarm_chrony_mode.sh status
 
 ros2 topic info /contact_state/observer_input --verbose
 ros2 topic info /aft_sensor2/wrench --verbose
