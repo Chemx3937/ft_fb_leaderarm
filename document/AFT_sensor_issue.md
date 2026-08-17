@@ -169,7 +169,7 @@ wrench가 달라지는 것은 정상 free-space wrench이므로 tare drift로 �
 - 실제 1000 Hz sensor sample이 필요할 때만 driver가 cycle마다 대기 CAN frame을
   모두 drain하도록 수정한 뒤 rate command 자동 적용을 구현한다.
 
-상세 실험 이력은 [failure log](failure_log.md)와
+상세 실험 이력은 [문제 기록](problem/README.md)과
 [FT sensor 확인 목록](FTsensor_check_list.md)에 보존한다.
 
 ## 2026-08-08 collector smoke 결과

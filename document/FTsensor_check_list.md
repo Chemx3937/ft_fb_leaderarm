@@ -97,7 +97,7 @@ callback 종료 교착을 제거하고 `sensor_name`으로 한 센서만 선택�
 ACK는 broadcaster가 메시지를 받은 것까지만 보장하므로 실제 CAN/센서 성공은
 zero 전후 wrench로 판정한다. legacy launch에는 sensor1/2 동시 실행과 종료 교착이
 그대로 남아 있으므로 안전한 단일 센서 운용에는 zero-set2를 사용한다.
-[FT-20260808-02](failure_log.md#ft-20260808-02-sbc-zero-set-node-종료-교착)는
+[FT-20260808-02](problem/FT-20260808-02.md)는
 legacy 보존으로 인해 `MITIGATED`다.
 
 AFT driver의 `on_configure()`에도 `bias_setting_mode(true)` 호출이 있지만, 반환된
@@ -113,7 +113,7 @@ frame을 전송할 때만 발생한다. 따라서 driver ON 자체는 명시적 
 이 상태에서는 hardware zero와 dataset 수집을 진행하지 않았다. 이후
 `[5.47,51.92,112.11,27.99,-106.91,-35.01] deg`, 모든 `dq≈0`으로 복귀해
 zero-set2를 수행했으므로 자세 이슈는
-[FT-20260808-03](failure_log.md#ft-20260808-03-zero-기준-자세-불일치)에서
+[FT-20260808-03](problem/FT-20260808-03.md)에서
 `CLOSED` 처리했다.
 
 zero-set2 후 5초간 5,001 sample을 측정한 결과 force median/std는
@@ -136,7 +136,7 @@ CAN으로 전송되지 않는다. 현재 driver는 controller cycle마다 CAN fr
 sample은 force/torque 두 frame이므로 500 Hz를 임시 운용 계약으로 둔다. collector의
 262.5 Hz 목표에는 500 Hz가 충분하지만 stamp는 실제 acquisition 시각이 아니므로
 동적 데이터의 sync 검증이 필요하다. 자세한 육하원칙과
-후속 결정은 [FT-20260808-04](failure_log.md#ft-20260808-04-aft-sample-rate-설정과-실제-갱신률-불일치)에 기록했다.
+후속 결정은 [FT-20260808-04](problem/FT-20260808-04.md)에 기록했다.
 현재 사양과 운용 계약 요약은 [AFT sensor 이슈](AFT_sensor_issue.md)에 기록한다.
 
 collector dry-run의 연속 6개 1초 zero 창은 기존 gate에서 5개가 통과했고 1개가
@@ -171,7 +171,7 @@ driver 시작 시각은 sensor 연속 전송을 시작한 실측 가능한 기�
 6. 첫 움직임/contact 데이터에서 raw와 4 ms causal 평균의 오차·검출 지연을 비교한다.
 
 gate는 공식 STD에 맞춰 `0.40 N`으로 변경했지만 tare 반복성은 별개이므로
-[FT-20260808-01](failure_log.md#ft-20260808-01-fz-zero-반복성과-정지-noise)을
+[FT-20260808-01](problem/FT-20260808-01.md)을
 `OPEN`으로 유지한다.
 
 500 Hz runtime command 후 10초 측정은 ROS `1000.07 Hz`, force 중복률 `50%`로
@@ -290,4 +290,4 @@ timeout 15s ros2 topic hz /contact_state/observer_input
 ros2 topic echo /contact_state/observer_input --once
 ```
 
-결과와 관련 artifact는 [failure log](failure_log.md)에 연결한다.
+결과와 관련 artifact는 [문제 기록](problem/README.md)에 연결한다.

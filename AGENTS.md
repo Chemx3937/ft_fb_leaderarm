@@ -12,6 +12,7 @@
 ## Repository knowledge
 
 - `document/`는 사용자를 위한 운용 및 설명 문서다.
+- 실패는 `document/problem/README.md`에 색인하고 문제별 `FT-YYYYMMDD-NN.md`에 기록한다.
 - `docs/`는 에이전트 하네스 지식 문서용으로 예약한다.
 - `docs/` 문서는 중복 설명 없이 계약, 경로, 검증 기준만 짧고 명확하게 기록한다.
 - 목표 구현 전 `docs/acceptance-contract.md`에서 합격 기준과 미확정 결정을 확인한다.

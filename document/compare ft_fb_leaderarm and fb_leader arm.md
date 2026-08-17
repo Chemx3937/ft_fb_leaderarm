@@ -91,4 +91,4 @@ free-space episode 안에 포함하기 위한 순서다.
 - [학습 architecture](base_architecture.md)
 - [실행 명령](command.md)
 - [FT 센서 점검](FTsensor_check_list.md)
-- [실패 기록](failure_log.md)
+- [실패 기록](problem/README.md)

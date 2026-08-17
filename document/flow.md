@@ -29,7 +29,7 @@
 | 7 | 40% feedback | 방향·진동·pose jump 정상, analyzer `GO` | [명령어](command.md) |
 | 8 | 100% feedback | authorization chain 검증과 제한 운용 통과 | [명령어](command.md) |
 | 9 | IL recorder 적용 | source/frame/model identity가 episode에 보존 | [TODO](TODO_LIST.md) |
-| 모든 단계 | 실패와 변경 기록 | artifact와 육하원칙이 연결됨 | [failure log](failure_log.md) |
+| 모든 단계 | 실패와 변경 기록 | artifact와 육하원칙이 연결됨 | [문제 기록](problem/README.md) |
 
 ## 중단 조건
 
@@ -45,5 +45,5 @@
 - feedback 방향 반대, 진동, pose jump, clip 지속이 관찰됨
 - analyzer 또는 authorization 결과가 `NO-GO`
 
-실패 시 [failure_log.md](failure_log.md)에 기록하고 같은 단계에서 원인 제거 후
+실패 시 [문제 기록](problem/README.md)에 새 문제 파일을 추가하고 같은 단계에서 원인 제거 후
 독립 조건으로 재검증한다.

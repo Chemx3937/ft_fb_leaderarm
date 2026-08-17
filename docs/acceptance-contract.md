@@ -2,12 +2,9 @@
 
 ## Purpose
 
-목표 구현과 단계 승인의 기준이다. 코드가 있어도 실측 evidence가 없으면 합격이 아니다.
-운용은 `document/TODO_LIST.md`와 `document/flow.md`, 검증은
-`docs/verification.md`를 따른다.
-
-상태: `READY_FOR_EVIDENCE`=코드 있음·실측 필요, `PARTIAL`=일부만 있음,
-`OPEN_DECISION`=기준 미확정, `NOT_IMPLEMENTED`=필수 구현 없음.
+목표 구현과 단계 승인의 안정적인 기준이다. 코드가 있어도 실측 evidence가 없으면
+합격이 아니다. 현재 진행 상태는 `document/TODO_LIST.md`, 운용은
+`document/flow.md`, gate별 검증 경로는 `docs/verification.md`를 따른다.
 
 ## Shared contract
 
@@ -37,38 +34,38 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 
 ## Free-space force prediction gates
 
-| ID | 합격 기준 | Evidence | 현재 상태 |
-|---|---|---|---|
-| `FS-01` | 매 수집 session 시작 전 기준 자세 오차 `<= 1 deg`, 정지 및 hardware zero 확인 | collector metadata와 zero diagnostics | `READY_FOR_EVIDENCE` |
-| `FS-02` | contact-free dataset, 독립 `zero_set_id` 3개 이상, payload/controller/frame 혼합 없음 | dataset validation report | `READY_FOR_EVIDENCE` |
-| `FS-03` | validation과 선택 모델의 held-out test 모두 `max(e_force) <= 1 N` | `ablation_report.json` | `READY_FOR_EVIDENCE` |
-| `FS-04` | target PC inference `p99 <= 3.048 ms`, `max <= 3.810 ms` | model runtime benchmark | `READY_FOR_EVIDENCE` |
-| `FS-05` | observer ready 이후 측정 구간의 유효 publish rate `>= 262.5 Hz`, deadline miss·invalid·stale 0회 | 독립 runtime report | `READY_FOR_EVIDENCE` |
-| `FS-06` | 독립 무접촉 동작에서 `max(||F_contact_hat||_2) <= 1 N` | observer-only FREE report | `READY_FOR_EVIDENCE` |
-| `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test | `READY_FOR_EVIDENCE` |
+| ID | 합격 기준 | Evidence |
+|---|---|---|
+| `FS-01` | 매 수집 session 시작 전 기준 자세 오차 `<= 1 deg`, 정지 및 hardware zero 확인 | collector metadata와 zero diagnostics |
+| `FS-02` | contact-free dataset, 독립 `zero_set_id` 3개 이상, payload/controller/frame 혼합 없음 | dataset validation report |
+| `FS-03` | validation과 선택 모델의 held-out test 모두 `max(e_force) <= 1 N` | `ablation_report.json` |
+| `FS-04` | target PC inference `p99 <= 3.048 ms`, `max <= 3.810 ms` | model runtime benchmark |
+| `FS-05` | observer ready 이후 측정 구간의 유효 publish rate `>= 262.5 Hz`, deadline miss·invalid·stale 0회 | 독립 runtime report |
+| `FS-06` | 독립 무접촉 동작에서 `max(||F_contact_hat||_2) <= 1 N` | observer-only FREE report |
+| `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test |
 
 모델 선택에는 validation만 사용하고 held-out test는 선택 모델에 한 번만 사용한다.
 목표 미달 시 기존 ablation 결과를 비교한 뒤에만 입력이나 구조를 추가한다.
 
 ## Contact observer gates
 
-| ID | 합격 기준 | Evidence | 현재 상태 |
-|---|---|---|---|
-| `CO-01` | canonical `ContactObservation.contact_state`가 FREE=`0`, CONTACT=`1`을 publish | message/observer test와 topic capture | `READY_FOR_EVIDENCE` |
-| `CO-02` | `||F_contact_hat||_2` threshold와 Schmitt hold로 판정하며 valid/model-ready/fresh/sync fail-close 로직 유지 | observer unit/integration test | `READY_FOR_EVIDENCE` |
-| `CO-03` | leader arm 없이 observer 단독 launch 가능 | standalone launch test | `READY_FOR_EVIDENCE` |
-| `CO-04` | FREE false contact 0회, contact precision·recall과 onset/release latency가 확정 기준 통과 | 독립 same-clock interval 기반 contact report | `PARTIAL` |
-| `CO-05` | IL 수집과 policy inference가 동일한 canonical observation을 사용하고 publisher는 하나뿐임 | config hash와 두 모드의 graph/message report | `READY_FOR_EVIDENCE` |
+| ID | 합격 기준 | Evidence |
+|---|---|---|
+| `CO-01` | canonical `ContactObservation.contact_state`가 FREE=`0`, CONTACT=`1`을 publish | message/observer test와 topic capture |
+| `CO-02` | `||F_contact_hat||_2` threshold와 Schmitt hold로 판정하며 valid/model-ready/fresh/sync fail-close 로직 유지 | observer unit/integration test |
+| `CO-03` | leader arm 없이 observer 단독 launch 가능 | standalone launch test |
+| `CO-04` | FREE false contact 0회, contact precision·recall과 onset/release latency가 확정 기준 통과 | 독립 same-clock interval 기반 contact report |
+| `CO-05` | IL 수집과 policy inference가 동일한 canonical observation을 사용하고 publisher는 하나뿐임 | config hash와 두 모드의 graph/message report |
 
 ## Feedback leader gates
 
-| ID | 합격 기준 | Evidence | 현재 상태 |
-|---|---|---|---|
-| `FB-01` | FREE·invalid·stale이면 reflected torque가 정확히 0이고 CONTACT일 때만 feedback 활성 | feedback analysis report | `READY_FOR_EVIDENCE` |
-| `FB-02` | CONTACT 시작 시 확정된 rise time과 최대 torque step 이내로 ramp-in | onset transient report | `READY_FOR_EVIDENCE` |
-| `FB-03` | torque clip 준수, leader pose step `<= 1 deg`, velocity reversal `<= 8 Hz`; 최종 진동 전달 기준 통과 | staged feedback report | `PARTIAL` |
-| `FB-04` | 기존 follower teleoperation을 유지하며 OFF→40%→100% evidence 승인 순서 준수 | authorization JSON과 원본 CSV hash | `READY_FOR_EVIDENCE` |
-| `FB-05` | 전용 GUI에서 feedback leader 제어와 IL episode 수집, raw/prediction/residual/state/model hash/timestamp/stage 저장 | `ft_il_episode_verify` report | `READY_FOR_EVIDENCE` |
+| ID | 합격 기준 | Evidence |
+|---|---|---|
+| `FB-01` | FREE·invalid·stale이면 reflected torque가 정확히 0이고 CONTACT일 때만 feedback 활성 | feedback analysis report |
+| `FB-02` | CONTACT 시작 시 확정된 rise time과 최대 torque step 이내로 ramp-in | onset transient report |
+| `FB-03` | torque clip 준수, leader pose step `<= 1 deg`, velocity reversal `<= 8 Hz`; 최종 진동 전달 기준 통과 | staged feedback report |
+| `FB-04` | 기존 follower teleoperation을 유지하며 OFF→40%→100% evidence 승인 순서 준수 | authorization JSON과 원본 CSV hash |
+| `FB-05` | 전용 GUI에서 feedback leader 제어와 IL episode 수집, raw/prediction/residual/state/model hash/timestamp/stage 저장 | `ft_il_episode_verify` report |
 
 Canonical CONTACT에도 설정된 ramp-up을 적용한다. 합격 rise time과 torque step은
 확정값을 evaluator에 명시하고 실측 report가 통과하기 전까지 승인하지 않는다.

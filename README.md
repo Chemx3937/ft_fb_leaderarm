@@ -24,7 +24,7 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
 - [fb_leaderarm과의 비교](document/compare%20ft_fb_leaderarm%20and%20fb_leader%20arm.md)
 - [FT 센서 점검표](document/FTsensor_check_list.md)
 - [AFT 센서 사양과 현재 이슈](document/AFT_sensor_issue.md)
-- [실패·문제 기록](document/failure_log.md)
+- [실패·문제 기록](document/problem/README.md)
 
 ## 문제 정의: 육하원칙
 

@@ -238,7 +238,7 @@ ros2 topic echo /aft_sensor2/wrench --once
 norm 1.0 N 이하와 각 축 std 0.40 N 이하이다. 이 값은 공식 AFT force
 noise-free resolution(STD)에 맞춘 것이다. 변경 근거와 영향은
 [AFT 센서 이슈](AFT_sensor_issue.md), 측정값은 [FT sensor 확인 목록](FTsensor_check_list.md)과
-[FT-20260808-01](failure_log.md#ft-20260808-01-fz-zero-반복성과-정지-noise)을
+[FT-20260808-01](problem/FT-20260808-01.md)을
 먼저 확인한다.
 
 현재 실측에서는 ROS topic은 약 1000 Hz지만 raw CAN의 새 force/torque 쌍은 약
@@ -249,7 +249,7 @@ noise-free resolution(STD)에 맞춘 것이다. 변경 근거와 영향은
 운용 계약으로 사용한다. 공식 센서 사양상 1000 Hz는 가능하지만 sample당
 force/torque 두 frame이어서 driver read 경로 수정 없이 올리면 backlog 위험이 있다.
 `/aft_sensor2/sample_rate_setting`을 임의 발행하지 말고
-[FT-20260808-04](failure_log.md#ft-20260808-04-aft-sample-rate-설정과-실제-갱신률-불일치)의
+[FT-20260808-04](problem/FT-20260808-04.md)의
 rate 계약을 먼저 확정한다.
 
 AFT를 새로 시작한 뒤 sensor2 rate를 명시적으로 적용할 때는 다음을 한 번 실행하고
@@ -584,7 +584,7 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
 ```
 
 제한된 조건에서 feedback 방향을 확인한다. 방향 반대, 진동, pose jump가 있으면
-즉시 중지하고 [failure_log.md](failure_log.md)에 기록한다. 40%에서도 FREE
+즉시 중지하고 [문제 기록](problem/README.md)에 새 문제 파일을 추가한다. 40%에서도 FREE
 3회와 controlled CONTACT CSV를 새 파일로 기록한다.
 
 ## 13. 40% → 100% 자동 분석과 승인

@@ -65,17 +65,17 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## Phase 1: FT 센서 특성 확인
 
-- [x] 같은 조건의 hardware zero-set 3회 예비 측정 (`FT-20260808-01` OPEN)
-- [x] 수정본을 `aft_zero_set2.py`로 분리하고 격리 회귀 test (`FT-20260808-02` MITIGATED)
+- [x] 같은 조건의 hardware zero-set 3회 예비 측정 ([`FT-20260808-01`](problem/FT-20260808-01.md) OPEN)
+- [x] 수정본을 `aft_zero_set2.py`로 분리하고 격리 회귀 test ([`FT-20260808-02`](problem/FT-20260808-02.md) MITIGATED)
 - [x] zero-set2 launch를 단일 `sensor_name` 선택 방식으로 구성, 기본 `aft_sensor2`
-- [x] 설정 zero 자세 재복귀 후 sensor2 zero-set2 수행 (`FT-20260808-03` CLOSED)
+- [x] 설정 zero 자세 재복귀 후 sensor2 zero-set2 수행 ([`FT-20260808-03`](problem/FT-20260808-03.md) CLOSED)
 - [ ] 전원 ON 후 0/15/30/60/120분 warm-up drift 기록
 - [ ] 같은 조건에서 hardware zero-set 10회 반복
 - [ ] zero마다 여러 고정 자세 왕복 측정
 - [ ] 재부팅 전후 반복성 확인
 - [ ] 케이블 strain, 온도, EMI, overload 회복 확인
-- [x] 60초 정지 noise와 raw CAN 실제 갱신률 측정 (`FT-20260808-04` MITIGATED)
-- [x] collector/observer 종료 guard 회귀 테스트와 collector Ctrl-C clean exit (`FT-20260808-05` CLOSED)
+- [x] 60초 정지 noise와 raw CAN 실제 갱신률 측정 ([`FT-20260808-04`](problem/FT-20260808-04.md) MITIGATED)
+- [x] collector/observer 종료 guard 회귀 테스트와 collector Ctrl-C clean exit ([`FT-20260808-05`](problem/FT-20260808-05.md) CLOSED)
 - [x] 현재 driver의 AFT sensor rate를 임시 500 Hz 운용 계약으로 확정
 - [x] 공식 force STD에 맞춰 collector/observer zero gate를 0.40 N으로 변경
 - [ ] 1000 Hz가 필요할 때 CAN drain/read와 configure command를 함께 수정·재측정
