@@ -13,6 +13,7 @@
 - `document/`는 사용자를 위한 운용 및 설명 문서다.
 - `docs/`는 에이전트 하네스 지식 문서용으로 예약한다.
 - 코드 변경 위치를 찾을 때 `docs/repository-map.md`에서 시작한다.
+- 변경 후 검증 명령은 `docs/verification.md`에서 선택한다.
 
 ## Hardware safety
 
