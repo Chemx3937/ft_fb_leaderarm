@@ -1,4 +1,4 @@
-# TODO: Physical FT free-space wrench model
+# TODO: Physical FT prediction, contact observer, feedback IL
 
 ## 최종 목표
 
@@ -16,34 +16,35 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## 현재 구현 상태
 
+`READY_FOR_EVIDENCE`는 검증 도구가 준비됐다는 뜻이며 실제 목표 합격은 아니다.
+
 | 항목 | 상태 | 완료 기준 또는 남은 일 |
 |---|---|---|
-| FT free-space collector | 코드 초안 완료 | 실제 AFT/robot에서 episode 저장 확인 필요 |
-| 고정 자세 zero 검증 | 코드 초안 완료 | 장시간 drift와 반복 tare 실측 필요 |
-| SBC zero-set2 launch | 실제 sensor2 tare/종료 PASS | legacy `aft_zero_set` 교착은 보존, 단일 센서는 zero-set2 사용 |
-| dataset validator | 완료 | 실제 dataset에서 group split report 생성 필요 |
-| 5개 ablation trainer | 완료 | 실제 데이터 학습 결과 없음 |
-| 1 N validation/test gate | 완료 | 실제 승인 모델 없음 |
-| 262.5 Hz benchmark gate | 완료 | target PC 실측 필요 |
-| ObserverInput-AFT 시간 정렬 | latest-only 3 ms gate | 실측 후 필요 시 nearest-state pairing 구현 |
-| FT contact observer | 코드 초안 완료 | 실제 frame/sign/rate/contact SNR 검증 필요 |
-| leader teleoperation | 코드 초안 완료 | feedback 방향과 안정성 실기 검증 필요 |
-| OFF → 40% → 100% 승인 | 완료 | 각 단계 evidence는 아직 없음 |
-| FT 실기 CSV analyzer | 완료 | 실제 threshold baseline 확정 필요 |
-| IL recorder 연동 | interface 준비 | 기존 recorder/GUI와 end-to-end 검증 필요 |
+| Free-space 수집·검증·학습 GUI | `READY_FOR_EVIDENCE` | 독립 zero-set dataset과 실제 모델 report 필요 |
+| 1 N 정확도·262.5 Hz gate | `READY_FOR_EVIDENCE` | target PC의 held-out test와 runtime evidence 필요 |
+| Contact observer·runtime/FREE 평가기 | `READY_FOR_EVIDENCE` | 실제 frame/sign/rate와 FREE residual 검증 필요 |
+| Contact ground-truth 평가기 | `PARTIAL` | ground truth 절차와 precision·recall·latency 기준 확정 필요 |
+| Feedback 분석·onset·단계 승인 | `READY_FOR_EVIDENCE` | rise time·torque step 기준과 OFF→40%→100% evidence 필요 |
+| Feedback 진동 전달 검증 | `PARTIAL` | 사용자 요청 시 metric과 합격 기준을 정해 재개 |
+| IL contact 계약 검증 | `READY_FOR_EVIDENCE` | collection/inference 양쪽의 실제 graph/message report 필요 |
+| Feedback IL 통합 GUI·episode 검증 | `READY_FOR_EVIDENCE` | 새 session의 test episode와 PASS report 필요 |
 
 ## 다음 실행 작업
 
-기록 시각: `2026-08-11 12:17:16 KST (+0900)`
+기록일: `2026-08-18 KST (+0900)`
 
 | 순서 | 담당 | 다음 작업 | 완료 기준 | 상태 |
 |---:|---|---|---|---|
-| 1 | 사용자 | 현재 driver/controller/AFT와 Chrony 상태를 중복 실행 없이 확인 | Chrony `GO`, ObserverInput/AFT topic 정상 | 완료: 두 topic 1 publisher/약 1000 Hz, Chrony bound `0.041132 ms`, `GO` |
-| 2 | 사용자 | AFT를 이번에 시작한 뒤 sensor2 500 Hz one-shot 실행 | 명령 1회 정상 발행 | 완료: subscriber 1개, `Int32(data=500)` 1회 발행 |
-| 3 | 사용자 | feedback-OFF teleop startup `ALIGN`; 자세가 다를 때만 `INIT POSE → REALIGN` | follower fixed zero pose, Teleop `IDLE` | 완료: follower 약 `[5.45,51.88,112.20,27.96,-106.77,-34.95]°`, startup `IDLE` |
-| 4 | 사용자 | cable/tool 무접촉 상태에서 `aft_zero_set2` 실행 | zero-set2 clean exit | 완료: 100 samples, hardware tare acknowledged, clean exit |
-| 5 | 사용자 | FT 전용 GUI를 고유 `zero_set_id`로 실행하고 첫 SLOW 무접촉 episode 수집 | `20~30초`, `accepted=true`, 접촉 0회 | 정식 재수집 필요: 첫 파일은 품질 통과했으나 `74.757초` |
-| 6 | 사용자→검증 | 저장된 `.npz/.json` 경로 확인 및 전달 | sample/sync/metadata 검증 가능 | 현재 파일 검증 완료: `262.504 Hz`, sync max `2.961 ms`, metadata 일치 |
+| 1 | 사용자 | 시작 자세, tool/payload/controller/frame과 수집 안전 조건 재확인 | FS-01 계약과 현재 장비 상태 일치 | 대기 |
+| 2 | 사용자 | 승인 후 첫 SLOW 무접촉 episode를 새 `zero_set_id`로 재수집 | `20~30초`, `accepted=true`, 접촉 0회 | 대기: 기존 첫 파일은 `74.757초` |
+| 3 | 사용자 | 독립 `zero_set_id` 최소 3개, 권장 8~10개 수집 | payload/controller/frame 혼합 없는 dataset | 대기 |
+| 4 | 검증 | dataset validator와 5개 ablation 학습 실행 | FS-02~04 report 통과, 승인 모델 생성 | 대기 |
+| 5 | 사용자→검증 | observer-only FREE evidence 수집 | FS-05~06, CO-01~03 report 통과 | 대기 |
+| 6 | 사용자→검증 | ground truth 절차·CO-04 기준 확정 후 controlled contact 평가 | CO-04 report 통과 | 대기 |
+| 7 | 사용자→검증 | FB-02 기준 확정 후 feedback OFF→40%→100% 분석·승인 | FB-01, FB-02, FB-04 report 통과 | 대기 |
+| 8 | 사용자→검증 | 통합 GUI로 새 IL test episode 저장·검증 | `ft_il_episode_verify` PASS | 대기 |
+| 9 | 검증 | IL collection/inference에서 canonical contact 계약 확인 | CO-05 report 두 개 통과 | 대기 |
+| 10 | 사용자→검증 | 보류한 진동 전달 기준 확정·검증 | FB-03 통과 | 사용자 요청 전 보류 |
 
 전체 순서와 명령은 [free-space wrench 데이터 수집 가이드](free_space_wrench_data_collection.md)를
 따른다. 첫 실제 episode 검증이 끝나기 전에는 여러 episode나 FAST 동작으로 확대하지
@@ -58,6 +59,9 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [ ] AFT sensor frame과 sensor→TCP transform 실측
 - [ ] 최대 허용 controlled-contact force 결정
 - [ ] moment 예측/feedback을 사용할 경우 최대 허용 moment 오차 결정
+- [ ] controlled-contact 전에 ground truth 절차와 CO-04 합격 기준 결정
+- [ ] feedback 전에 CONTACT rise time과 최대 torque step 결정
+- [ ] 사용자 요청 시 leader→follower 진동 전달 metric과 기준 결정
 
 ## Phase 1: FT 센서 특성 확인
 
@@ -116,15 +120,19 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## Phase 5: Observer-only 실기 검증
 
+- [x] runtime rate/FREE residual과 contact ground-truth 평가기 구현
 - [ ] 새 runtime hardware zero-set 수행
-- [ ] `/contact_observer/right/observation` 262.5 Hz 확인
-- [ ] FREE 동작에서 residual force 최대 1 N 확인
+- [ ] `ft_observer_runtime_evaluate`로 유효 publish rate 262.5 Hz 확인
+- [ ] 같은 report에서 FREE residual force 최대 1 N 확인
 - [ ] FREE false contact 0회 확인
-- [ ] 제한된 controlled contact에서 검출/해제 확인
+- [ ] ground truth 절차와 precision·recall·onset/release latency 기준 확정
+- [ ] `ft_contact_evaluate`로 controlled contact 검출/해제 기준 통과
 - [ ] contact 방향과 base-frame 부호 확인
 
 ## Phase 6: 단계별 feedback 승인
 
+- [x] feedback 분석·authorization·onset evaluator 구현
+- [ ] CONTACT rise time과 최대 torque step 기준 확정
 - [ ] feedback-OFF FREE CSV 3개 이상 수집
 - [ ] feedback-OFF controlled-CONTACT CSV 수집
 - [ ] OFF→40 analyzer가 `GO`인지 확인
@@ -133,13 +141,16 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [ ] 40% FREE/CONTACT CSV 분석이 `GO`인지 확인
 - [ ] 100% authorization 생성
 - [ ] 100% 제한 운용 후 안정성 확인
+- [ ] 사용자 요청 시 leader→follower 진동 전달 metric과 기준을 정해 FB-03 재개
 
 ## Phase 7: IL 적용
 
-- [ ] FT observer와 기존 IL recorder source 연결 확인
-- [ ] raw physical FT와 predicted/contact wrench가 모두 저장되는지 확인
-- [ ] 동일 observation topic을 두 observer가 동시에 발행하지 않는지 확인
-- [ ] 작은 test episode를 저장하고 timestamp/frame/schema 검증
+- [x] FT observer, 기존 UMI recorder와 Feedback Leader Arm GUI 통합 launch 구현
+- [x] raw/prediction/residual/state/model hash/timestamp/stage 저장 계약 구현
+- [x] 저장된 episode의 읽기 전용 verifier 구현
+- [ ] 동일 observation topic의 publisher가 하나인지 실제 graph에서 확인
+- [ ] feedback OFF의 작은 test episode를 새 session에 저장하고 verifier PASS 확인
+- [ ] IL collection과 policy inference에서 `ft_il_contact_verify` 각각 PASS
 - [ ] 승인된 task 범위에서 본 IL 수집 시작
 
 ## Definition of Done
@@ -147,6 +158,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - 실제 장비의 독립 zero-set held-out test에서 최대 force-vector 오차 ≤ 1 N
 - target PC에서 model deadline과 ROS 262.5 Hz 모두 통과
 - 장시간 FREE 실기에서 false contact 0회
-- controlled contact의 방향·검출·해제가 일관됨
+- controlled contact의 precision·recall·onset/release latency 기준 통과
+- feedback onset과 leader→follower 진동 전달 기준 통과
 - OFF → 40% → 100% authorization chain이 raw CSV까지 재검증됨
-- IL episode에 physical raw/prediction/contact residual과 model identity가 보존됨
+- IL episode verifier와 collection/inference contact 계약이 모두 통과
