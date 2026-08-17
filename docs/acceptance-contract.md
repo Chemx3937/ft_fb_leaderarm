@@ -57,7 +57,7 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 | `CO-01` | canonical `ContactObservation.contact_state`가 FREE=`0`, CONTACT=`1`을 publish | message/observer test와 topic capture | `READY_FOR_EVIDENCE` |
 | `CO-02` | `||F_contact_hat||_2` threshold와 Schmitt hold로 판정하며 valid/model-ready/fresh/sync fail-close 로직 유지 | observer unit/integration test | `READY_FOR_EVIDENCE` |
 | `CO-03` | leader arm 없이 observer 단독 launch 가능 | standalone launch test | `READY_FOR_EVIDENCE` |
-| `CO-04` | FREE false contact 0회, contact precision·recall과 onset/release latency가 확정 기준 통과 | ground-truth contact evaluation report | `OPEN_DECISION` |
+| `CO-04` | FREE false contact 0회, contact precision·recall과 onset/release latency가 확정 기준 통과 | 독립 same-clock interval 기반 contact report | `PARTIAL` |
 | `CO-05` | IL 수집과 policy inference가 동일한 canonical observation을 사용하고 publisher는 하나뿐임 | 두 경로의 end-to-end topic capture | `PARTIAL` |
 
 ## Feedback leader gates
@@ -75,7 +75,7 @@ contact-on feedback을 승인하지 않는다.
 
 ## Open decisions
 
-- contact ground truth 수집 방법, precision·recall 및 onset/release latency 기준
+- 독립 contact ground truth 장치/기록 절차, precision·recall 및 onset/release latency 기준
 - CONTACT 시작 최대 torque step과 feedback rise time
 - leader 진동이 follower로 전달되는 정도의 metric과 합격 기준
 

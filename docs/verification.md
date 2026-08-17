@@ -41,4 +41,18 @@ ros2 run ft_fb_leaderarm ft_observer_runtime_evaluate \
   --duration-s 10 --output /absolute/path/observer_runtime.json
 ```
 
+## Contact ground-truth evidence
+
+관측 CSV와 독립 장치로 기록한 같은 시계의 `start_s,end_s` 접촉 구간 CSV를
+사용한다. 미확정 합격값은 실행자가 명시하며 기존 report를 덮어쓰지 않는다.
+
+```bash
+ros2 run ft_fb_leaderarm ft_contact_evaluate -- \
+  --observation-csv /absolute/path/observations.csv \
+  --ground-truth-csv /absolute/path/contact_intervals.csv \
+  --min-precision VALUE --min-recall VALUE \
+  --max-onset-latency-ms VALUE --max-release-latency-ms VALUE \
+  --output /absolute/path/contact_evaluation.json
+```
+
 완료 보고에는 실행한 명령, 통과·실패 결과, 실행하지 못한 하드웨어 검증을 기록한다.

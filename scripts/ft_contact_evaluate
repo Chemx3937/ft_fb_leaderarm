@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from ft_fb_leaderarm.contact_evaluation import main
+
+raise SystemExit(main())
