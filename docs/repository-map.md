@@ -13,6 +13,7 @@ contact observation과 오른팔 leader feedback을 제공한다.
 
 | 변경 대상 | 시작 위치 | 함께 확인할 위치 |
 |---|---|---|
+| 목표와 합격 기준 | `docs/acceptance-contract.md` | `document/TODO_LIST.md`, `document/flow.md` |
 | 빌드와 설치 | `CMakeLists.txt`, `package.xml` | `scripts/`, `launch/`, `config/` |
 | FT 데이터 수집 | `ft_fb_leaderarm/collector_node.py` | `config/collector.yaml`, `launch/collect_free_space*.launch.py` |
 | 데이터·feature 계약 | `ft_fb_leaderarm/contract.py` | `ft_fb_leaderarm/validate_dataset.py`, `test/test_contract.py` |
