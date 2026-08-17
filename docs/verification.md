@@ -31,9 +31,10 @@ colcon test-result --test-result-base build/ft_fb_leaderarm --verbose
 전체 테스트 전에 위 `PYTHONPATH`가 필요하다. `contact_observer_msgs`는
 `contact_pipeline_ws` 환경에서 제공된다.
 
-## Observer runtime evidence
+## Observer runtime and FREE evidence
 
-사용자 승인 아래 observer가 실행 중일 때만 다음 passive 평가를 실행한다.
+사용자 승인 아래 observer가 실행 중일 때만 다음 passive 평가를 실행한다. 같은
+report에서 `FS-05` runtime과 `FS-06` FREE residual을 판정한다.
 
 ```bash
 ros2 run ft_fb_leaderarm ft_observer_runtime_evaluate \

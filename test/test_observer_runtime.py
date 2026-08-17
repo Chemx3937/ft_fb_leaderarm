@@ -30,13 +30,31 @@ def snapshot(
     }
 
 
-def test_observer_runtime_gate_passes_exact_rate_and_rejects_failures():
+def observations(first, last, force_n=0.2):
+    return [
+        {
+            "prediction_sequence": sequence,
+            "contact_wrench": [force_n, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "contact_state": 0,
+            "valid": True,
+            "model_ready": True,
+            "frame_id": "right_base_link",
+        }
+        for sequence in range(first, last + 1)
+    ]
+
+
+def test_observer_runtime_and_free_space_gates():
     start = snapshot(2.0, 100, 100)
-    passed = analyze_observer_runtime(start, snapshot(12.0, 2725, 2725))
+    free_samples = observations(101, 2725)
+    passed = analyze_observer_runtime(
+        start, snapshot(12.0, 2725, 2725), free_samples
+    )
     assert passed["passed"]
     assert passed["metrics"]["valid_publish_hz"] == 262.5
+    assert passed["metrics"]["free_residual_force_norm_max_n"] == 0.2
 
-    rejected = analyze_observer_runtime(
+    runtime_rejected = analyze_observer_runtime(
         start,
         snapshot(
             12.0,
@@ -46,7 +64,23 @@ def test_observer_runtime_gate_passes_exact_rate_and_rejects_failures():
             deadline=1,
             reasons={"locally_stale_input": 1},
         ),
+        observations(101, 2724),
     )
-    assert not rejected["passed"]
-    assert rejected["metrics"]["stale_publications"] == 1
-    assert "valid publish rate is below 262.5 Hz" in rejected["failures"]
+    assert not runtime_rejected["gates"]["FS-05"]["passed"]
+    assert runtime_rejected["metrics"]["stale_publications"] == 1
+
+    contact_samples = [dict(row) for row in free_samples]
+    contact_samples[-1]["contact_wrench"] = [1.01, 0.0, 0.0, 0.0, 0.0, 0.0]
+    contact_samples[-1]["contact_state"] = 1
+    free_rejected = analyze_observer_runtime(
+        start, snapshot(12.0, 2725, 2725), contact_samples
+    )
+    assert free_rejected["gates"]["FS-05"]["passed"]
+    assert not free_rejected["gates"]["FS-06"]["passed"]
+    assert "CONTACT samples exist in the FREE interval" in free_rejected["failures"]
+    assert "FREE residual force exceeds 1.0 N" in free_rejected["failures"]
+
+    missing = analyze_observer_runtime(
+        start, snapshot(12.0, 2725, 2725), free_samples[:-1]
+    )
+    assert "ContactObservation sequence is incomplete" in missing["failures"]
