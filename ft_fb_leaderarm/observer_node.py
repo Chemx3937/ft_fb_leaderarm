@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the approved physical-FT model and publish canonical contact residuals."""
 
-from collections import deque
+from collections import Counter, deque
 import json
 import math
 import signal
@@ -192,6 +192,8 @@ class PhysicalFtContactObserver(Node):
         self.last_inference_ms = 0.0
         self.max_inference_ms = 0.0
         self.last_residual_force_norm_n = 0.0
+        self.invalid_reason_counts = Counter()
+        self.start_monotonic_s = time.monotonic()
 
         qos = sensor_qos()
         self.create_subscription(
@@ -445,6 +447,7 @@ class PhysicalFtContactObserver(Node):
 
     def publish_invalid(self, now_message, reason):
         self.invalid_publications += 1
+        self.invalid_reason_counts[str(reason).split(":", 1)[0]] += 1
         observation = ContactObservation()
         state = self.latest_state
         if state is not None and state["stamp_s"] > 0.0:
@@ -486,12 +489,25 @@ class PhysicalFtContactObserver(Node):
                 "approved_model": True,
                 "model_ready": True,
                 "baseline_ready": self.zero_verified,
+                "observer_ready": (
+                    self.zero_verified
+                    and len(self.history) >= self.predictor.history
+                    and self.valid_predictions > 0
+                ),
                 "residual_bias_calibration_enabled": False,
                 "residual_bias_ready": True,
                 "sample_hz": SAMPLE_HZ,
+                "uptime_s": time.monotonic() - self.start_monotonic_s,
+                "model_sha256": self.predictor.metadata["model_sha256"],
+                "zero_set_id": str(self.get_parameter("zero_set_id").value),
+                "payload_id": str(self.get_parameter("payload_id").value),
+                "controller_config_hash": str(
+                    self.get_parameter("controller_config_hash").value
+                ),
                 "cycles": self.cycles,
                 "valid_predictions": self.valid_predictions,
                 "invalid_publications": self.invalid_publications,
+                "invalid_reason_counts": dict(self.invalid_reason_counts),
                 "zero_verified": self.zero_verified,
                 "zero": self.zero_verifier.summary(),
                 "history": len(self.history),

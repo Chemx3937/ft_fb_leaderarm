@@ -7,6 +7,7 @@
 - 기존 사용자 변경과 무관한 파일은 수정하지 않는다.
 - 변경 후 diff를 코드 리뷰하고 관련 테스트를 실행한다.
 - 완료 보고에는 수정한 코드, 변경 내용, 영향 범위, 검증 결과를 포함한다.
+- 하네스 검증 실패는 완료 보고에 기록하고, 재현 가능한 결함은 회귀 테스트로 남기며, 반복되는 미해결 문제만 `docs/`에 문서화한다.
 
 ## Repository knowledge
 
@@ -16,7 +17,6 @@
 - 목표 구현 전 `docs/acceptance-contract.md`에서 합격 기준과 미확정 결정을 확인한다.
 - 코드 변경 위치를 찾을 때 `docs/repository-map.md`에서 시작한다.
 - 변경 후 검증 명령은 `docs/verification.md`에서 선택한다.
-- 실험 또는 검증 실패는 `document/failure_log.md`에 육하원칙과 artifact 경로로 기록한다.
 
 ## Hardware safety
 

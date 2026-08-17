@@ -139,6 +139,7 @@ install(PROGRAMS
   scripts/ft_free_space_validate
   scripts/ft_free_space_train
   scripts/ft_contact_observer
+  scripts/ft_observer_runtime_evaluate
   scripts/ft_feedback_analyze
   scripts/ft_feedback_authorize
   scripts/ft_free_space_collection_gui.py
