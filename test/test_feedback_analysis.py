@@ -6,6 +6,8 @@ import pytest
 from ft_fb_leaderarm.feedback_analysis import (
     REQUIRED_COLUMNS,
     analyze_feedback_evidence,
+    analyze_feedback_onsets,
+    onset_main,
 )
 from ft_fb_leaderarm.feedback_authorization import (
     ATTESTATIONS,
@@ -56,6 +58,46 @@ def write_csv(path, contact_pattern, feedback_on=False, gain_scale=0.0):
             writer.writerow(row)
 
 
+def write_onset_csv(path):
+    fieldnames = (
+        "t_s",
+        "state",
+        "feedback_gain_scale_contract",
+        "observer_valid",
+        "observer_model_ready",
+        "fe_age_ms",
+        "observer_source_age_ms",
+        "observer_contact_state",
+        "contact_scale",
+        *(f"tau_fb_j{index}" for index in range(1, 7)),
+    )
+    rows = []
+    for _ in range(3):
+        rows.append((0, 0.0))
+        rows.extend((1, scale) for scale in (0.0, 0.25, 0.5, 0.75, 1.0, 1.0))
+        rows.append((0, 0.0))
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fieldnames)
+        writer.writeheader()
+        for index, (contact, scale) in enumerate(rows):
+            row = {key: 0 for key in fieldnames}
+            row.update(
+                {
+                    "t_s": index * 0.002,
+                    "state": "FAST",
+                    "feedback_gain_scale_contract": 0.4,
+                    "observer_valid": 1,
+                    "observer_model_ready": 1,
+                    "fe_age_ms": 1.0,
+                    "observer_source_age_ms": 1.0,
+                    "observer_contact_state": contact,
+                    "contact_scale": scale,
+                    "tau_fb_j1": 0.04 * scale,
+                }
+            )
+            writer.writerow(row)
+
+
 def test_analyzer_counts_false_contact_and_stage_health(tmp_path):
     model = write_model(tmp_path / "model")
     free = []
@@ -92,6 +134,45 @@ def test_analyzer_counts_false_contact_and_stage_health(tmp_path):
     rejected = analyze_feedback_evidence(model, 0.40, free, [contact], limits)
     assert not rejected["passed"]
     assert "FREE runs contain false CONTACT activations" in rejected["failures"]
+
+
+def test_onset_analyzer_checks_ramp_step_and_blocked_feedback(tmp_path):
+    evidence = tmp_path / "contact_onsets.csv"
+    write_onset_csv(evidence)
+    report = analyze_feedback_onsets(evidence, 8.1, 0.0101)
+    assert report["passed"]
+    assert report["aggregate"]["evaluable_contact_activations"] == 3
+    assert report["aggregate"]["max_rise_time_ms"] == pytest.approx(8.0)
+    assert report["aggregate"]["max_torque_step_nm"] == pytest.approx(0.01)
+    output = tmp_path / "onset.json"
+    assert onset_main(
+        [
+            "--csv", str(evidence),
+            "--max-rise-time-ms", "8.1",
+            "--max-torque-step-nm", "0.0101",
+            "--output", str(output),
+        ]
+    ) == 0
+    assert json.loads(output.read_text())["passed"]
+    step_rejected = analyze_feedback_onsets(evidence, 8.1, 0.009)
+    assert (
+        "CONTACT at row 3: torque step exceeded the limit"
+        in step_rejected["failures"]
+    )
+
+    with evidence.open() as stream:
+        rows = list(csv.DictReader(stream))
+    rows[0]["tau_fb_j1"] = "0.001"
+    with evidence.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=rows[0])
+        writer.writeheader()
+        writer.writerows(rows)
+    rejected = analyze_feedback_onsets(evidence, 8.1, 0.0101)
+    assert not rejected["passed"]
+    assert (
+        "feedback torque is nonzero while canonical feedback is blocked"
+        in rejected["failures"]
+    )
 
 
 def test_authorization_recomputes_bound_off_and_40_percent_csv(tmp_path):

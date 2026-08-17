@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from ft_fb_leaderarm.feedback_analysis import onset_main
+
+raise SystemExit(onset_main())

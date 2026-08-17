@@ -17,6 +17,7 @@ from .feedback_authorization import REFERENCE_CLIP_NM
 
 ANALYSIS_SCHEMA_VERSION = 1
 ANALYSIS_TYPE = "physical_ft_feedback_analysis_v1"
+ONSET_ANALYSIS_TYPE = "feedback_onset_analysis_v1"
 TARGET_TO_EVIDENCE_GAIN = {0.40: 0.0, 1.00: 0.40}
 SAFETY_LIMITS = {
     "max_free_force_error_n": 1.0,
@@ -49,6 +50,18 @@ REQUIRED_COLUMNS = {
     *(f"leader_j{index}_deg" for index in range(1, 7)),
     *(f"follower_j{index}_deg" for index in range(1, 7)),
     *(f"leader_dq_j{index}" for index in range(1, 7)),
+    *(f"tau_fb_j{index}" for index in range(1, 7)),
+}
+ONSET_REQUIRED_COLUMNS = {
+    "t_s",
+    "state",
+    "feedback_gain_scale_contract",
+    "observer_valid",
+    "observer_model_ready",
+    "fe_age_ms",
+    "observer_source_age_ms",
+    "observer_contact_state",
+    "contact_scale",
     *(f"tau_fb_j{index}" for index in range(1, 7)),
 }
 
@@ -231,6 +244,169 @@ def analyze_csv(path, expected_state):
         "contact_feedback_nonzero_fraction": (
             float(np.mean(contact_feedback)) if len(contact_feedback) else 0.0
         ),
+    }
+
+
+def analyze_feedback_onsets(
+    path,
+    max_rise_time_ms,
+    max_torque_step_nm,
+    min_contact_activations=3,
+    max_source_age_ms=20.0,
+    max_record_gap_ms=10.0,
+):
+    limits = {
+        "max_rise_time_ms": max_rise_time_ms,
+        "max_torque_step_nm": max_torque_step_nm,
+        "min_contact_activations": min_contact_activations,
+        "max_source_age_ms": max_source_age_ms,
+        "max_record_gap_ms": max_record_gap_ms,
+    }
+    for key, value in limits.items():
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) <= 0.0
+        ):
+            raise RuntimeError(f"{key} must be finite and positive")
+    if int(min_contact_activations) != min_contact_activations:
+        raise RuntimeError("min_contact_activations must be an integer")
+
+    target = Path(path).expanduser().resolve()
+    if not target.is_file() or target.stat().st_size <= 0:
+        raise RuntimeError(f"evidence CSV is missing or empty: {target}")
+    with target.open("r", encoding="utf-8", newline="") as stream:
+        reader = csv.DictReader(stream)
+        missing = sorted(ONSET_REQUIRED_COLUMNS.difference(reader.fieldnames or ()))
+        if missing:
+            raise RuntimeError(f"{target}: CSV columns are missing: {missing}")
+        rows = [row for row in reader if row.get("state", "").strip().upper() == "FAST"]
+    if len(rows) < 2:
+        raise RuntimeError(f"{target}: no usable FAST interval")
+
+    times = np.asarray([_number(row, "t_s") for row in rows])
+    if np.any(np.diff(times) <= 0.0):
+        raise RuntimeError(f"{target}: FAST timestamps are not increasing")
+    record_gaps_ms = np.diff(times) * 1000.0
+    valid_values = np.asarray([_number(row, "observer_valid") for row in rows])
+    ready_values = np.asarray([_number(row, "observer_model_ready") for row in rows])
+    contact_values = np.asarray(
+        [_number(row, "observer_contact_state") for row in rows]
+    )
+    for name, values in (
+        ("observer_valid", valid_values),
+        ("observer_model_ready", ready_values),
+        ("observer_contact_state", contact_values),
+    ):
+        if np.any(~np.isin(values, (0.0, 1.0))):
+            raise RuntimeError(f"{target}: {name} must contain only 0 or 1")
+    source_age_ms = np.asarray(
+        [_number(row, "observer_source_age_ms") for row in rows]
+    )
+    local_age_ms = np.asarray([_number(row, "fe_age_ms") for row in rows])
+    scale = np.asarray([_number(row, "contact_scale") for row in rows])
+    gain_scale = np.asarray(
+        [_number(row, "feedback_gain_scale_contract") for row in rows]
+    )
+    feedback = np.asarray(
+        [[_number(row, f"tau_fb_j{index}") for index in range(1, 7)] for row in rows]
+    )
+    allowed = (
+        (valid_values == 1.0)
+        & (ready_values == 1.0)
+        & (source_age_ms >= -2.0)
+        & (source_age_ms <= float(max_source_age_ms))
+        & (local_age_ms >= 0.0)
+        & (local_age_ms <= float(max_source_age_ms))
+        & (contact_values == 1.0)
+    )
+    starts = np.flatnonzero(allowed & ~np.r_[False, allowed[:-1]])
+    failures = []
+    if len(starts) and starts[0] == 0:
+        failures.append("first CONTACT starts before the FAST evidence window")
+
+    episodes = []
+    for start in starts[starts > 0]:
+        inactive = np.flatnonzero(~allowed[start + 1:])
+        end = start + 1 + int(inactive[0]) if len(inactive) else len(rows)
+        full = np.flatnonzero(scale[start:end] >= 1.0 - 1.0e-4)
+        episode = {
+            "onset_time_s": float(times[start]),
+            "initial_scale": float(scale[start]),
+            "completed": bool(len(full)),
+            "feedback_peak_nm": float(np.max(np.abs(feedback[start:end]))),
+        }
+        if scale[start] > 1.0e-4:
+            failures.append(f"CONTACT at row {start + 2}: ramp did not start at zero")
+        if episode["feedback_peak_nm"] <= 1.0e-6:
+            failures.append(f"CONTACT at row {start + 2}: feedback stayed zero")
+        if not len(full):
+            failures.append(f"CONTACT at row {start + 2}: ramp did not reach scale 1")
+            episode.update({"rise_time_ms": None, "max_torque_step_nm": None})
+            episodes.append(episode)
+            continue
+        full_index = start + int(full[0])
+        rise_time_ms = float((times[full_index] - times[start]) * 1000.0)
+        torque_steps = np.abs(np.diff(feedback[start - 1:full_index + 1], axis=0))
+        max_step_nm = float(np.max(torque_steps))
+        episode.update(
+            {
+                "rise_time_ms": rise_time_ms,
+                "max_torque_step_nm": max_step_nm,
+            }
+        )
+        episodes.append(episode)
+        if np.any(np.diff(scale[start:full_index + 1]) < -1.0e-4):
+            failures.append(f"CONTACT at row {start + 2}: ramp scale moved backwards")
+        if rise_time_ms > float(max_rise_time_ms) + 1.0e-9:
+            failures.append(f"CONTACT at row {start + 2}: rise time exceeded the limit")
+        if max_step_nm > float(max_torque_step_nm) + 1.0e-9:
+            failures.append(f"CONTACT at row {start + 2}: torque step exceeded the limit")
+
+    if len(episodes) < int(min_contact_activations):
+        failures.append("evaluable CONTACT activations are insufficient")
+    if np.max(record_gaps_ms) > float(max_record_gap_ms) + 1.0e-9:
+        failures.append("FAST record gap exceeded the limit")
+    if np.min(gain_scale) <= 0.0 or np.max(gain_scale) - np.min(gain_scale) > 1.0e-9:
+        failures.append("evidence must use one nonzero feedback gain stage")
+    if np.any((scale < -1.0e-4) | (scale > 1.0 + 1.0e-4)):
+        failures.append("contact scale is outside [0, 1]")
+    blocked = ~allowed
+    blocked_feedback_max = float(np.max(np.abs(feedback[blocked]))) if np.any(blocked) else 0.0
+    blocked_scale_max = float(np.max(np.abs(scale[blocked]))) if np.any(blocked) else 0.0
+    if blocked_feedback_max > 1.0e-6:
+        failures.append("feedback torque is nonzero while canonical feedback is blocked")
+    if blocked_scale_max > 1.0e-6:
+        failures.append("contact scale is nonzero while canonical feedback is blocked")
+
+    completed = [episode for episode in episodes if episode["completed"]]
+    return {
+        "schema_version": ANALYSIS_SCHEMA_VERSION,
+        "analysis_type": ONSET_ANALYSIS_TYPE,
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "passed": not failures,
+        "source": {
+            "path": str(target),
+            "sha256": file_sha256(target),
+            "size_bytes": target.stat().st_size,
+        },
+        "limits": limits,
+        "aggregate": {
+            "evaluable_contact_activations": len(episodes),
+            "completed_ramps": len(completed),
+            "feedback_gain_scale": float(np.min(gain_scale)),
+            "max_rise_time_ms": max(
+                (episode["rise_time_ms"] for episode in completed), default=None
+            ),
+            "max_torque_step_nm": max(
+                (episode["max_torque_step_nm"] for episode in completed), default=None
+            ),
+            "blocked_feedback_abs_max_nm": blocked_feedback_max,
+            "blocked_scale_abs_max": blocked_scale_max,
+        },
+        "episodes": episodes,
+        "failures": failures,
     }
 
 
@@ -473,6 +649,43 @@ def main(argv=None):
         return 0 if report["passed"] else 2
     except Exception as exc:
         print(f"ERROR: FT feedback analysis failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def onset_main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Evaluate canonical CONTACT feedback ramp-in from a leader CSV"
+    )
+    parser.add_argument("--csv", required=True)
+    parser.add_argument("--max-rise-time-ms", required=True, type=float)
+    parser.add_argument("--max-torque-step-nm", required=True, type=float)
+    parser.add_argument("--min-contact-activations", type=int, default=3)
+    parser.add_argument("--max-source-age-ms", type=float, default=20.0)
+    parser.add_argument("--max-record-gap-ms", type=float, default=10.0)
+    parser.add_argument("--output", required=True)
+    try:
+        args = parser.parse_args(argv)
+        output = Path(args.output).expanduser().resolve()
+        if output.exists() or output.is_symlink():
+            raise RuntimeError(f"refusing to overwrite onset report: {output}")
+        report = analyze_feedback_onsets(
+            args.csv,
+            args.max_rise_time_ms,
+            args.max_torque_step_nm,
+            args.min_contact_activations,
+            args.max_source_age_ms,
+            args.max_record_gap_ms,
+        )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(("PASS" if report["passed"] else "FAIL") + f": {output}")
+        for failure in report["failures"]:
+            print(f"- {failure}")
+        return 0 if report["passed"] else 2
+    except Exception as exc:
+        print(f"ERROR: feedback onset analysis failed: {exc}", file=sys.stderr)
         return 1
 
 

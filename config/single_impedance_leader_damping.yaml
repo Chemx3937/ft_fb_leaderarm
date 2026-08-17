@@ -285,7 +285,8 @@ leader_teleop_node:
     # 비접촉 상태에서 남길 feedback scale입니다. 0에 가까울수록 허공 feedback이 더 강하게 차단됩니다.
     tau_fb_contact_free_scale: 0.0
 
-    # Contact ON으로 전환될 때 feedback scale을 1.0까지 올리는 시간입니다. 단위는 ms입니다.
+    # Contact ON으로 전환될 때 feedback scale을 1.0까지 올리는 시간입니다.
+    # 내부 gate가 꺼져 있어도 canonical contact_observer feedback에 적용됩니다. 단위는 ms입니다.
     tau_fb_contact_ramp_up_ms: 80.0
 
     # Contact OFF로 전환될 때 feedback scale을 free_scale까지 내리는 시간입니다. 단위는 ms입니다.

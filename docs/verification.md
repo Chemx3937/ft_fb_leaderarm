@@ -72,4 +72,16 @@ ros2 run ft_fb_leaderarm ft_il_contact_verify -- \
 # --mode inference --output /absolute/path/il_contact_inference.json
 ```
 
+## Feedback onset
+
+확정된 기준값과 controlled CONTACT가 3회 이상 포함된 feedback-enabled leader CSV를
+사용한다.
+
+```bash
+ros2 run ft_fb_leaderarm ft_feedback_onset_evaluate -- \
+  --csv /absolute/path/leader_teleop.csv \
+  --max-rise-time-ms VALUE --max-torque-step-nm VALUE \
+  --output /absolute/path/feedback_onset.json
+```
+
 완료 보고에는 실행한 명령, 통과·실패 결과, 실행하지 못한 하드웨어 검증을 기록한다.

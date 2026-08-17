@@ -143,6 +143,7 @@ install(PROGRAMS
   scripts/ft_il_contact_verify
   scripts/ft_observer_runtime_evaluate
   scripts/ft_feedback_analyze
+  scripts/ft_feedback_onset_evaluate
   scripts/ft_feedback_authorize
   scripts/ft_free_space_collection_gui.py
   DESTINATION lib/${PROJECT_NAME}

@@ -1415,7 +1415,9 @@ void LeaderTeleopNode::reset_contact_gate_state() {
   tau_fb_contact_bias_init_ = false;
   tau_fb_contact_state_ = false;
   tau_fb_contact_phase_ = -1;
-  tau_fb_contact_scale_ = tau_fb_contact_gate_enable_ ? tau_fb_contact_free_scale_ : 1.0;
+  tau_fb_contact_scale_ = use_contact_observer_fb_
+    ? 0.0
+    : (tau_fb_contact_gate_enable_ ? tau_fb_contact_free_scale_ : 1.0);
   tau_fb_contact_on_since_ = -1.0;
   tau_fb_contact_off_since_ = -1.0;
   tau_fb_contact_last_t_ = 0.0;
@@ -1869,6 +1871,11 @@ void LeaderTeleopNode::control_loop() {
     tau_lpf_init_ = false;
     tau_fb_slew_state_.setZero();
     tau_fb_slew_init_ = false;
+    if (use_contact_observer_fb_) {
+      tau_fb_contact_state_ = false;
+      tau_fb_contact_phase_ = -1;
+      tau_fb_contact_scale_ = 0.0;
+    }
   }
 
   // 3d) Single per-joint clip — the ONLY saturation point, so last_tau_unclipped_
@@ -1901,6 +1908,11 @@ void LeaderTeleopNode::control_loop() {
     tau_lpf_init_ = false;
     tau_fb_slew_state_.setZero();
     tau_fb_slew_init_ = false;
+    if (use_contact_observer_fb_) {
+      tau_fb_contact_state_ = false;
+      tau_fb_contact_phase_ = -1;
+      tau_fb_contact_scale_ = 0.0;
+    }
   }
   last_tau_cmd_ = tau_total;
 

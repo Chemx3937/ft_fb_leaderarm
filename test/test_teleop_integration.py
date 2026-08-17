@@ -47,6 +47,9 @@ def test_ft_teleop_config_cannot_default_to_jt_feedback():
     )
     assert config["use_jt_wrench_feedback"] is False
     assert config["tau_fb_contact_gate_enable"] is False
+    assert config["tau_fb_contact_ramp_up_ms"] > 0.0
+    source = (PACKAGE_ROOT / "src/single_impedance_wrench_feedback.cpp").read_text()
+    assert "tau_fb_contact_scale_ * contact_wrench" in source
 
 
 def test_integrated_launch_uses_only_local_teleop_executable():
@@ -162,5 +165,6 @@ def test_ft_feedback_csv_contains_automatic_analysis_contract():
         assert column in source
     cmake = (PACKAGE_ROOT / "CMakeLists.txt").read_text()
     assert "scripts/ft_feedback_analyze" in cmake
+    assert "scripts/ft_feedback_onset_evaluate" in cmake
     assert "scripts/ft_free_space_validate" in cmake
     assert "DIRECTORY config launch document" in cmake

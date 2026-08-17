@@ -79,7 +79,8 @@ bool LeaderTeleopNode::compute_reflected_wrench_and_jacobian(
       ? std::chrono::duration<double>(
           std::chrono::steady_clock::now() - receive_steady).count()
       : std::numeric_limits<double>::infinity();
-    const double source_age = now().seconds() - source_stamp;
+    const double now_s = now().seconds();
+    const double source_age = now_s - source_stamp;
     const bool fresh = receive_steady_valid &&
       local_age >= 0.0 && local_age <= contact_observation_stale_timeout_ &&
       source_age >= -contact_observation_clock_future_tolerance_ &&
@@ -87,21 +88,43 @@ bool LeaderTeleopNode::compute_reflected_wrench_and_jacobian(
     const bool in_contact =
       contact_state == contact_observer_msgs::msg::ContactObservation::CONTACT;
 
-    // Mirror the canonical state for diagnostics only. The leader never
-    // classifies contact in this mode.
-    tau_fb_contact_state_ = valid && model_ready && fresh && in_contact;
-    tau_fb_contact_phase_ = tau_fb_contact_state_ ? 1 : -1;
-    tau_fb_contact_scale_ = tau_fb_contact_state_ ? 1.0 : 0.0;
-    contact_observation_feedback_active_ = tau_fb_contact_state_;
-
     if (!valid || !model_ready || !fresh || !in_contact) {
+      tau_fb_contact_state_ = false;
+      tau_fb_contact_phase_ = -1;
+      tau_fb_contact_scale_ = 0.0;
+      tau_fb_contact_last_t_ = now_s;
+      contact_observation_feedback_active_ = false;
       last_w_base_.setZero();
       last_tau_unclipped_.setZero();
       return false;
     }
 
+    // The observer owns contact classification; the leader only ramps the
+    // canonical CONTACT wrench to avoid a torque step at onset.
+    const bool contact_started = !tau_fb_contact_state_;
+    const double elapsed = (tau_fb_contact_last_t_ > 0.0)
+      ? std::max(0.0, now_s - tau_fb_contact_last_t_)
+      : dt_;
+    tau_fb_contact_state_ = true;
+    tau_fb_contact_phase_ = 1;
+    if (tau_fb_contact_ramp_up_s_ <= 1e-9) {
+      tau_fb_contact_scale_ = 1.0;
+    } else if (contact_started) {
+      tau_fb_contact_scale_ = 0.0;
+    } else {
+      tau_fb_contact_scale_ = std::min(
+        1.0, tau_fb_contact_scale_ + elapsed / tau_fb_contact_ramp_up_s_);
+    }
+    tau_fb_contact_last_t_ = now_s;
+    contact_observation_feedback_active_ = true;
+    if (tau_fb_contact_scale_ < 1.0 - 1e-9) {
+      tau_fb_contact_gate_active_period_ = true;
+      tau_fb_contact_min_scale_period_ =
+        std::min(tau_fb_contact_min_scale_period_, tau_fb_contact_scale_);
+    }
+
     return compute_reflected_wrench_and_jacobian_from_delta(
-      contact_wrench,
+      tau_fb_contact_scale_ * contact_wrench,
       impedance_command_base_frame_id_,
       impedance_tip_frame_id_,
       jt_wrench_sign_,
@@ -158,6 +181,9 @@ bool LeaderTeleopNode::compute_reflected_wrench_and_jacobian_from_delta(
     last_tau_unclipped_.setZero();
     if (use_contact_observer_fb_) {
       contact_observation_feedback_active_ = false;
+      tau_fb_contact_state_ = false;
+      tau_fb_contact_phase_ = -1;
+      tau_fb_contact_scale_ = 0.0;
     }
     return false;
   };

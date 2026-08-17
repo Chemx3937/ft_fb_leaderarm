@@ -65,13 +65,13 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 | ID | 합격 기준 | Evidence | 현재 상태 |
 |---|---|---|---|
 | `FB-01` | FREE·invalid·stale이면 reflected torque가 정확히 0이고 CONTACT일 때만 feedback 활성 | feedback analysis report | `READY_FOR_EVIDENCE` |
-| `FB-02` | CONTACT 시작 시 확정된 rise time과 최대 torque step 이내로 ramp-in | onset transient report | `NOT_IMPLEMENTED` |
+| `FB-02` | CONTACT 시작 시 확정된 rise time과 최대 torque step 이내로 ramp-in | onset transient report | `READY_FOR_EVIDENCE` |
 | `FB-03` | torque clip 준수, leader pose step `<= 1 deg`, velocity reversal `<= 8 Hz`; 최종 진동 전달 기준 통과 | staged feedback report | `PARTIAL` |
 | `FB-04` | 기존 follower teleoperation을 유지하며 OFF→40%→100% evidence 승인 순서 준수 | authorization JSON과 원본 CSV hash | `READY_FOR_EVIDENCE` |
 | `FB-05` | 전용 GUI에서 feedback leader 제어와 IL episode 수집, raw/prediction/residual/state/model hash/timestamp/stage 저장 | GUI/recorder end-to-end report | `PARTIAL` |
 
-현재 CONTACT 순간 `tau_fb_contact_scale_`이 `1.0`이 되므로 `FB-02` 통과 전에는
-contact-on feedback을 승인하지 않는다.
+Canonical CONTACT에도 설정된 ramp-up을 적용한다. 합격 rise time과 torque step은
+확정값을 evaluator에 명시하고 실측 report가 통과하기 전까지 승인하지 않는다.
 
 ## Open decisions
 
