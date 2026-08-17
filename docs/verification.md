@@ -55,4 +55,21 @@ ros2 run ft_fb_leaderarm ft_contact_evaluate -- \
   --output /absolute/path/contact_evaluation.json
 ```
 
+## IL contact contract
+
+사용자 승인 아래 IL collection 또는 inference 경로가 실행 중일 때 passive
+verifier를 각 모드에 한 번씩 실행한다. 두 report 모두 canonical config, 단일
+publisher, 해당 consumer와 유효 message capture를 통과해야 한다.
+
+```bash
+ros2 run ft_fb_leaderarm ft_il_contact_verify -- \
+  --mode collection \
+  --recorder-config /absolute/path/recorder.yaml \
+  --policy-config /absolute/path/policy_runner.yaml \
+  --output /absolute/path/il_contact_collection.json
+
+# Policy inference 실행 중에는 mode와 output만 바꿔 다시 실행한다.
+# --mode inference --output /absolute/path/il_contact_inference.json
+```
+
 완료 보고에는 실행한 명령, 통과·실패 결과, 실행하지 못한 하드웨어 검증을 기록한다.

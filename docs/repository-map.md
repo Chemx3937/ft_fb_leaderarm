@@ -20,6 +20,7 @@ contact observation과 오른팔 leader feedback을 제공한다.
 | 모델과 학습 | `ft_fb_leaderarm/model.py`, `ft_fb_leaderarm/train_ablation.py` | `scripts/ft_free_space_train`, `test/test_model_bundle.py` |
 | Contact observer | `ft_fb_leaderarm/observer_node.py` | `config/observer.yaml`, `launch/ft_contact_observer.launch.py` |
 | Contact 정량 평가 | `ft_fb_leaderarm/contact_evaluation.py` | `scripts/ft_contact_evaluate`, `test/test_contact_evaluation.py` |
+| IL contact 계약 검증 | `ft_fb_leaderarm/il_contact_verification.py` | `scripts/ft_il_contact_verify`, `test/test_il_contact_verification.py` |
 | Observer runtime/FREE 평가 | `ft_fb_leaderarm/observer_runtime.py` | `scripts/ft_observer_runtime_evaluate`, `test/test_observer_runtime.py` |
 | Feedback 분석과 승인 | `ft_fb_leaderarm/feedback_analysis.py`, `ft_fb_leaderarm/feedback_authorization.py` | `scripts/ft_feedback_analyze`, `scripts/ft_feedback_authorize`, `test/test_feedback_analysis.py`, `test/test_feedback_authorization.py` |
 | Leader teleoperation | `src/single_impedance_*.cpp`, `include/ft_fb_leaderarm/` | `launch/ft_feedback_leader_teleop.launch.py`, `config/single_impedance_leader_damping.yaml`, `test/test_teleop_integration.py` |

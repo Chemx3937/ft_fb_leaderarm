@@ -140,6 +140,7 @@ install(PROGRAMS
   scripts/ft_free_space_train
   scripts/ft_contact_observer
   scripts/ft_contact_evaluate
+  scripts/ft_il_contact_verify
   scripts/ft_observer_runtime_evaluate
   scripts/ft_feedback_analyze
   scripts/ft_feedback_authorize

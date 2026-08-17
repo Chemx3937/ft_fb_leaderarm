@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from ft_fb_leaderarm.il_contact_verification import main
+
+raise SystemExit(main())
