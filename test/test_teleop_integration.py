@@ -168,3 +168,24 @@ def test_ft_feedback_csv_contains_automatic_analysis_contract():
     assert "scripts/ft_feedback_onset_evaluate" in cmake
     assert "scripts/ft_free_space_validate" in cmake
     assert "DIRECTORY config launch document" in cmake
+
+
+def test_teleop_status_exposes_feedback_stage_for_il_recorder():
+    source = (PACKAGE_ROOT / "src/single_impedance_keyboard_fsm.cpp").read_text()
+    assert r'\"feedback_gain_scale_contract\":' in source
+
+
+def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
+    source = (
+        PACKAGE_ROOT / "launch/ft_feedback_leader_data_collection.launch.py"
+    ).read_text()
+    ast.parse(source)
+    assert "ft_feedback_leader_teleop.launch.py" in source
+    assert '"--model-sha256", model_hash' in source
+    assert '"--feedback-gain-scale-contract", str(stage)' in source
+    assert (
+        'DeclareLaunchArgument("require_output_mount", default_value="true")'
+        in source
+    )
+    assert 'package="fb_leaderarm"' in source
+    assert 'executable="feedback_leaderarm_data_collection_gui.py"' in source

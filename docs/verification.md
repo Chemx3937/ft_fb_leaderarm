@@ -84,4 +84,22 @@ ros2 run ft_fb_leaderarm ft_feedback_onset_evaluate -- \
   --output /absolute/path/feedback_onset.json
 ```
 
+## IL episode
+
+저장된 test episode를 읽기 전용으로 검증한다. `--expected-stage`는
+`0.0`, `0.40`, `1.00` 중 실제 수집 단계와 같은 값을 사용한다.
+Recorder에는 선택 모델의 SHA-256과 같은 `--model-sha256`, 실제 stage와 같은
+`--feedback-gain-scale-contract`를 전달해야 한다.
+
+```bash
+ros2 run ft_fb_leaderarm ft_il_episode_verify -- \
+  --episode /absolute/path/episode_000 \
+  --model /absolute/path/model.ts \
+  --expected-stage 0.40 \
+  --output /absolute/path/il_episode_verification.json
+```
+
+필수 저장 항목이 하나라도 없으면 `FAIL`이며 해당 episode는 `FB-05` evidence로
+인정하지 않는다.
+
 완료 보고에는 실행한 명령, 통과·실패 결과, 실행하지 못한 하드웨어 검증을 기록한다.

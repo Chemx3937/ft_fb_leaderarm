@@ -21,9 +21,11 @@ contact observation과 오른팔 leader feedback을 제공한다.
 | Contact observer | `ft_fb_leaderarm/observer_node.py` | `config/observer.yaml`, `launch/ft_contact_observer.launch.py` |
 | Contact 정량 평가 | `ft_fb_leaderarm/contact_evaluation.py` | `scripts/ft_contact_evaluate`, `test/test_contact_evaluation.py` |
 | IL contact 계약 검증 | `ft_fb_leaderarm/il_contact_verification.py` | `scripts/ft_il_contact_verify`, `test/test_il_contact_verification.py` |
+| IL episode 저장 검증 | `ft_fb_leaderarm/il_episode_verification.py` | UMI `chem_acp_raw_data_collection_lowhz.py`, 관련 테스트 |
 | Observer runtime/FREE 평가 | `ft_fb_leaderarm/observer_runtime.py` | `scripts/ft_observer_runtime_evaluate`, `test/test_observer_runtime.py` |
 | Feedback 분석과 승인 | `ft_fb_leaderarm/feedback_analysis.py`, `ft_fb_leaderarm/feedback_authorization.py` | `scripts/ft_feedback_analyze`, `scripts/ft_feedback_onset_evaluate`, `scripts/ft_feedback_authorize`, 관련 테스트 |
 | Leader teleoperation | `src/single_impedance_*.cpp`, `include/ft_fb_leaderarm/` | `launch/ft_feedback_leader_teleop.launch.py`, `config/single_impedance_leader_damping.yaml`, `test/test_teleop_integration.py` |
+| Feedback IL 수집 GUI | `launch/ft_feedback_leader_data_collection.launch.py` | UMI recorder와 `fb_leaderarm` GUI |
 | 데이터 수집 GUI | `scripts/ft_free_space_collection_gui.py` | `launch/collect_free_space_gui.launch.py` |
 | 자동 검증 | `docs/verification.md`, `test/` | `CMakeLists.txt`의 `BUILD_TESTING` 영역 |
 | 사용자 운용 문서 | `README.md`, `document/` | 동작 변경 시 함께 갱신 |

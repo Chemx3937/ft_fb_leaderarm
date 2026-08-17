@@ -539,6 +539,7 @@ void LeaderTeleopNode::publish_status() {
   out << std::fixed << std::setprecision(8)
       << "{\"schema_version\":1,\"stamp\":" << ros_now
       << ",\"state\":" << json_string(teleop_state_name())
+      << ",\"feedback_gain_scale_contract\":" << feedback_gain_scale_contract_
       << ",\"contact\":" << json_string(contact_status)
       << ",\"contact_state\":" << contact_state
       << ",\"observer_ready\":" << (observer_ready ? "true" : "false")
