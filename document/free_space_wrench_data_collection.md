@@ -159,6 +159,10 @@ ros2 topic pub --once /aft_sensor2/sample_rate_setting \
 확인하고 직접 실행한다. GUI의 순서 guard를 terminal key로 우회하지 않도록 keyboard를
 비활성화한다.
 
+process가 시작되면 leader는 position mode에서 현재 follower 자세로 자동 `ALIGN`한
+뒤 `IDLE`이 된다. 이 startup `ALIGN`은 leader를 실제로 움직일 수 있지만 follower
+command는 발행하지 않는다.
+
 ```bash
 source /opt/ros/humble/setup.bash
 source /home/vision/contact_pipeline_ws/install/setup.bash
@@ -167,11 +171,11 @@ source /home/vision/dualarm_ws/install/setup.bash
 ros2 run ft_fb_leaderarm ft_fb_leader_single_impedance_teleop --ros-args \
   --params-file "${FT_PACKAGE_ROOT}/config/single_impedance_leader_damping.yaml" \
   -p side:=right \
-  -p feedback_source:=off \
+  -p feedback_source:="'off'" \
   -p keyboard_input_enabled:=false
 ```
 
-### 6. 운용자가 follower를 fixed zero pose로 이동하고 leader를 재정렬
+### 6. fixed zero pose와 leader 정렬 확인
 
 목표 자세는 다음과 같다.
 
@@ -179,8 +183,12 @@ ros2 run ft_fb_leaderarm ft_fb_leader_single_impedance_teleop --ros-args \
 [5.5, 52.0, 112.0, 28.0, -107.0, -35.0] degree
 ```
 
-다음 명령은 follower/leader를 실제로 움직일 수 있으므로 운용자가 직접 실행한다.
-`INIT POSE` 완료 로그를 확인한 뒤 `REALIGN`을 실행한다.
+startup 후 follower가 위 자세이고 status가 `IDLE`이면 자동 `ALIGN`까지 완료된
+것이므로 `INIT POSE`와 `REALIGN`을 다시 실행하지 않는다.
+
+follower가 위 자세가 아닐 때만 다음 명령을 운용자가 직접 실행한다. `INIT POSE`는
+follower를 실제로 움직이며, 완료 로그를 확인한 뒤 `REALIGN`으로 leader를 다시
+follower에 맞춘다.
 
 ```bash
 ros2 service call /leader_teleop_node/command/init_pose \
@@ -194,7 +202,7 @@ ros2 service call /leader_teleop_node/command/realign \
 ros2 topic echo /leader_teleop_node/status --once
 ```
 
-마지막 status의 `state`가 `IDLE`이어야 한다. CURRENT로 전환하면 안 된다.
+최종 status의 `state`가 `IDLE`이어야 한다. CURRENT로 전환하면 안 된다.
 
 ### 7. SBC에서 AFT hardware zero-set2 실행
 

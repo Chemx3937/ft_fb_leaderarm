@@ -38,8 +38,85 @@
 | `FT-20260808-04` | 2026-08-08 | `SYNC` | Phase 1 | 설정 1000 Hz와 실제 wrench 갱신 약 500 Hz 불일치 | `MITIGATED` | [상세](#ft-20260808-04-aft-sample-rate-설정과-실제-갱신률-불일치) |
 | `FT-20260808-05` | 2026-08-08 | `RUNTIME` | Phase 1 | launch Ctrl-C 시 collector cleanup이 두 번째 SIGINT로 중단 | `CLOSED` | [상세](#ft-20260808-05-ros-launch-종료-중복-sigint) |
 | `FT-20260811-01` | 2026-08-11 | `OPS` | Phase 0 | 수집 가이드의 Chrony 상대경로가 현재 작업 디렉터리에서 실패 | `CLOSED` | [상세](#ft-20260811-01-chrony-helper-경로-오류) |
+| `FT-20260811-02` | 2026-08-11 | `OPS` | Phase 2 | CLI의 `off`가 Boolean으로 해석되어 teleop 시작 전 종료 | `CLOSED` | [상세](#ft-20260811-02-feedback_source-cli-type-오류) |
+| `FT-20260811-03` | 2026-08-11 | `OPS` | Phase 2 | teleop 시작 시 leader 자동 ALIGN 움직임이 안내에 불명확 | `CLOSED` | [상세](#ft-20260811-03-startup-leader-자동-align-안내-누락) |
+| `FT-20260811-04` | 2026-08-11 | `DATA` | Phase 3 | 첫 정식 SLOW episode가 목표 20~30초 대신 74.757초 | `MITIGATED` | [상세](#ft-20260811-04-첫-slow-episode-길이-초과) |
 
 새 실패는 기존 행을 보존하고 `FT-YYYYMMDD-NN` 형식의 새 행으로 추가한다.
+
+## FT-20260811-04: 첫 SLOW episode 길이 초과
+
+- 상태: MITIGATED
+- 분류: DATA
+- 누가: 오른팔 feedback-OFF 수집 운용자와 `ft_free_space_collector`
+- 언제: 2026-08-11 12:12:29~12:13:44 KST, 첫 실제 episode
+- 어디서: `/home/vision/.ros/ft_fb_leaderarm/data/right_free_space_20260811_121344.*`
+- 무엇을: 계획한 `20~30초` 대신 `74.756994초`, 19,625 samples가 저장됐고
+  collector는 `accepted=true`로 판정했다.
+- 왜: 현재 collector 품질 gate는 최소 episode 시간만 검사하며 30초 최대 시간은
+  운용 절차로만 제한한다. 직접 원인은 START부터 STOP까지 74.757초가 경과한 것이다.
+- 어떻게: 외부 JSON, NPZ 내부 metadata와 timestamp 차이를 대조했다.
+
+### 정량 결과와 조치
+
+- 저장률 `262.503869 Hz`, gap p99/max `4.005/6.010 ms`
+- sync p99/max `1.369/2.961 ms`, sync rejection 18, invalid rejection 0
+- NaN/Inf와 timestamp 역전 0, source sequence strictly increasing
+- 6축 joint range `[13.016,9.532,10.955,25.092,29.995,22.580] deg`
+- 동시간 leader CSV 상태는 `IDLE 5,091`, `CURRENT 1,052`, `SLOW 31,107`행이며
+  `FAST`는 0행, feedback gain은 전 구간 `0`이었다.
+- NPZ/JSON metadata 일치, SHA-256은 NPZ
+  `8ecf006d...ac8`, JSON `4f92919a...210`
+- 현재 파일은 삭제하지 않고 탐색용으로 보존한다. 정식 dataset에는 균형을 위해
+  `20~30초` SLOW episode를 다시 수집한다.
+- 최대 시간 자동 gate는 아직 추가하지 않았다. 수동 timer로 재수집한 뒤 필요성이
+  남으면 별도 코드 변경으로 검토한다.
+
+## FT-20260811-03: startup leader 자동 ALIGN 안내 누락
+
+- 상태: CLOSED
+- 분류: OPS
+- 누가: 오른팔 leader DXL과 feedback-OFF teleop 운용자
+- 언제: 2026-08-11 11:55 KST, 수정된 OFF 명령으로 teleop을 처음 시작할 때
+- 어디서: PC `ft_fb_leader_single_impedance_teleop` startup
+- 무엇을: process 시작 직후 leader가 follower와 같은 자세로 실제 이동했다.
+- 왜: constructor 이후 one-shot timer가 `align_leader_to_follower()`를 자동 호출하여
+  leader를 position mode, 약 `15 deg/s`로 현재 follower 자세에 맞추는 설계인데 기존
+  가이드가 이 자동 움직임을 명시하지 않았다.
+- 어떻게: status `IDLE`, source의 startup timer/ALIGN 함수와 생성된 OFF CSV를
+  대조했다. CSV의 feedback gain은 `0`, follower는 약
+  `[5.45,51.88,112.20,27.96,-106.77,-34.95] deg`를 유지했다.
+
+### 조치와 영향
+
+- 가이드에 startup이 leader를 자동 이동시키며 follower command는 발행하지 않는다고
+  명시했다.
+- follower가 이미 fixed zero pose이고 startup status가 `IDLE`이면 중복
+  `INIT POSE/REALIGN`을 생략하도록 절차를 조건부로 수정했다.
+- teleop 코드, YAML, follower controller와 `fb_leaderarm`은 변경하지 않았다.
+- 실제 동작이 설계와 일치하고 문서 누락을 수정했으므로 `CLOSED`로 종료한다.
+
+## FT-20260811-02: feedback_source CLI type 오류
+
+- 상태: CLOSED
+- 분류: OPS
+- 누가: feedback-OFF teleop을 시작한 운용자와
+  `ft_fb_leader_single_impedance_teleop`
+- 언제: 2026-08-11 11:53 KST, 첫 실제 episode 준비 단계
+- 어디서: PC ROS 2 CLI parameter override
+- 무엇을: `-p feedback_source:=off`가 Boolean `false`로 해석되어 문자열 parameter에
+  적용되지 못하고 `InvalidParameterTypeException`으로 process가 시작 전에 종료됐다.
+- 왜: ROS 2 CLI가 parameter 값을 YAML로 해석하며 따옴표 없는 `off`는 Boolean이다.
+- 어떻게: 실제 오류와 `ros2param.api.get_parameter_value()`를 대조하여 `off`는 bool
+  type 1, `'off'`는 string type 4로 확인했다.
+
+### 조치와 영향
+
+- 두 실행 문서에서 `-p feedback_source:="'off'"`로 수정했다.
+- teleop 코드, YAML, leader/follower 및 `fb_leaderarm`은 변경하지 않았다.
+- process가 parameter 적용 단계에서 종료됐으므로 robot 이동과 feedback 적용은 없었다.
+- 수정 명령으로 process가 정상 시작되고 startup `ALIGN` 뒤 status `IDLE`, CSV
+  feedback gain `0`을 확인했다.
 
 ## FT-20260811-01: Chrony helper 경로 오류
 
@@ -119,6 +196,9 @@
   선형 drift `[0.011,0.009,0.013] N/min`
 - 500 Hz command 후 10초 median/std: `[0.24,0.07,-1.13] /
   [0.121,0.172,0.207] N`; median norm `1.157 N`
+- 2026-08-11 정식 수집 준비 zero gate: 1초/1,001 samples, force median
+  `[-0.15,-0.14,-0.38] N`, median norm `0.432 N`, 축별 std
+  `[0.119,0.148,0.184] N`, `zero_verified`
 
 ### Artifact
 
@@ -229,6 +309,9 @@
 - subscriber가 없는 격리 launch: CAN 요청 없이 오류를 남기고 대기함을 확인
 - 실제 domain 7 실행: 오른팔 bias 1회, process clean exit,
   `AFT_ZERO_SET2_RC=0`
+- 2026-08-11 재실행: `/aft_sensor2/bias_setting` subscriber 1개, 100 samples,
+  시작 평균 force `[0.266,-0.044,0.406] N`, torque
+  `[0.014,0.018,-0.002] Nm`, hardware tare acknowledged, process clean exit
 - 영향: 기본 launch가 sensor1을 함께 tare하지 않으며, 정상 전달 뒤 node가 종료된다.
 - 제한: DDS ACK는 AFT broadcaster 수신까지만 뜻하며 CAN/센서 내부 성공 응답은
   아니다. 실제 wrench 전후값으로 별도 판정한다.

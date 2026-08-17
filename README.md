@@ -15,16 +15,16 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
 
 ## 문서 바로가기
 
-- [전체 순서](docs/flow.md)
-- [실행 명령](docs/command.md)
-- [GUI 기반 free-space wrench 데이터 수집](docs/free_space_wrench_data_collection.md)
-- [구현 목표와 TODO](docs/TODO_LIST.md)
-- [PC-SBC 시계 동기화와 FT sample 시간 정렬](docs/timing_sync.md)
-- [학습 구조와 ablation](docs/base_architecture.md)
-- [fb_leaderarm과의 비교](docs/compare%20ft_fb_leaderarm%20and%20fb_leader%20arm.md)
-- [FT 센서 점검표](docs/FTsensor_check_list.md)
-- [AFT 센서 사양과 현재 이슈](docs/AFT_sensor_issue.md)
-- [실패·문제 기록](docs/failure_log.md)
+- [전체 순서](document/flow.md)
+- [실행 명령](document/command.md)
+- [GUI 기반 free-space wrench 데이터 수집](document/free_space_wrench_data_collection.md)
+- [구현 목표와 TODO](document/TODO_LIST.md)
+- [PC-SBC 시계 동기화와 FT sample 시간 정렬](document/timing_sync.md)
+- [학습 구조와 ablation](document/base_architecture.md)
+- [fb_leaderarm과의 비교](document/compare%20ft_fb_leaderarm%20and%20fb_leader%20arm.md)
+- [FT 센서 점검표](document/FTsensor_check_list.md)
+- [AFT 센서 사양과 현재 이슈](document/AFT_sensor_issue.md)
+- [실패·문제 기록](document/failure_log.md)
 
 ## 문제 정의: 육하원칙
 
@@ -105,7 +105,7 @@ AFT driver ON만으로는 zero-set되지 않는다. 현재 관절각이 위 기�
 이내인지 먼저 확인한다. zero-set 직후 한 sample만 보고 영점을 판정하지 않는다.
 최소 5초 구간의
 축별 median과 표준편차를 확인하고, 독립 zero-set마다 새 `zero_set_id`를 사용한다.
-자세 불일치나 launch 실패 시에는 [실행 절차](docs/command.md#4-sbc-aft-on과-hardware-zero-set)를
+자세 불일치나 launch 실패 시에는 [실행 절차](document/command.md#4-sbc-aft-on과-hardware-zero-set)를
 따른다.
 
 각 실제 zero-set마다 중복되지 않는 `zero_set_id`를 만들고 collector를

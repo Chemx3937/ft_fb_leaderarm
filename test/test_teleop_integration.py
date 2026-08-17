@@ -131,4 +131,4 @@ def test_ft_feedback_csv_contains_automatic_analysis_contract():
     cmake = (PACKAGE_ROOT / "CMakeLists.txt").read_text()
     assert "scripts/ft_feedback_analyze" in cmake
     assert "scripts/ft_free_space_validate" in cmake
-    assert "DIRECTORY config launch docs" in cmake
+    assert "DIRECTORY config launch document" in cmake

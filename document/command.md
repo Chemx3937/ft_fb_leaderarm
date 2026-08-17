@@ -307,7 +307,7 @@ feedback source OFF로 실행한다.
 ros2 run ft_fb_leaderarm ft_fb_leader_single_impedance_teleop --ros-args \
   --params-file "${FT_PACKAGE_ROOT}/config/single_impedance_leader_damping.yaml" \
   -p side:=right \
-  -p feedback_source:=off \
+  -p feedback_source:="'off'" \
   -p keyboard_input_enabled:=false
 ```
 
@@ -315,9 +315,12 @@ FT 전용 GUI 절차에서는 terminal key가 GUI의 순서 guard를 우회하�
 `keyboard_input_enabled=false`를 사용한다. GUI 없이 terminal key로 운용할 때만 이
 override를 제거한다.
 
-leader는 기존 안전 절차에 따라 position mode에서 follower의 fixed zero pose에
-정렬하되 아직 CURRENT로 전환하지 않는다. follower가 fixed zero pose에서
-`zero_verified`인지 확인한 뒤 먼저 collector episode를 시작한다.
+leader는 startup에서 position mode로 현재 follower 자세에 자동 정렬된 뒤 `IDLE`이
+되며, 이때 leader가 실제로 움직일 수 있다. startup 정렬은 follower command를
+발행하지 않는다. follower가 이미 fixed zero pose라면 `INIT POSE/REALIGN`을 반복하지
+않는다. follower가 다른 자세일 때만 `INIT POSE → REALIGN`을 수행한다. 아직 CURRENT로
+전환하지 않고 fixed zero pose에서 `zero_verified`인지 확인한 뒤 먼저 collector
+episode를 시작한다.
 
 gate가 실패해도 zero-set, AFT publish 또는 robot이 차단되는 것은 아니다. 아래의
 **새 수집 시작 요청만 거부**되고 collector는 계속 실행된다. 먼저 diagnostics를

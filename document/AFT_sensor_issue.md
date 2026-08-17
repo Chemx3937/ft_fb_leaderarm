@@ -91,6 +91,8 @@ cycle에 CAN frame 하나만 읽으므로 controller를 500 Hz로 낮추면 sens
   만족하지만 별도 median norm `1.0 N` gate는 실패했다.
 - 기준 자세에서 zero-set2를 다시 수행한 뒤 7개 연속 1초 창이 모두
   `zero_verified`였고 최대 축 std는 `0.205 N` 이하였다.
+- 2026-08-11 AFT 재시작 후 `/aft_sensor2/sample_rate_setting` subscriber 1개와
+  `Int32(data=500)` 1회 발행을 다시 확인했다.
 
 ## 적용한 변경과 영향
 

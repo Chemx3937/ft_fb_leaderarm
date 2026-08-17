@@ -145,7 +145,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config launch docs
+install(DIRECTORY config launch document
   DESTINATION share/${PROJECT_NAME}
 )
 
