@@ -45,7 +45,7 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 | `FS-04` | target PC inference `p99 <= 3.048 ms`, `max <= 3.810 ms` | model runtime benchmark | `READY_FOR_EVIDENCE` |
 | `FS-05` | observer ready 이후 측정 구간의 유효 publish rate `>= 262.5 Hz`, deadline miss·invalid·stale 0회 | 독립 runtime report | `READY_FOR_EVIDENCE` |
 | `FS-06` | 독립 무접촉 동작에서 `max(||F_contact_hat||_2) <= 1 N` | observer-only FREE report | `READY_FOR_EVIDENCE` |
-| `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test | `PARTIAL` |
+| `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test | `READY_FOR_EVIDENCE` |
 
 모델 선택에는 validation만 사용하고 held-out test는 선택 모델에 한 번만 사용한다.
 목표 미달 시 기존 ablation 결과를 비교한 뒤에만 입력이나 구조를 추가한다.

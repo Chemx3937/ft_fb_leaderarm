@@ -22,8 +22,8 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPen
+from PyQt5.QtCore import QProcess, Qt, QTimer
+from PyQt5.QtGui import QColor, QPainter, QPen, QTextCursor
 from PyQt5.QtWidgets import (
     QApplication, QComboBox, QGridLayout, QGroupBox,
     QHBoxLayout, QHeaderView, QLabel, QMainWindow, QMessageBox, QPushButton,
@@ -77,6 +77,23 @@ def _collector_is_collecting(status):
     if not isinstance(status, dict):
         return False
     return bool(status.get("collecting"))
+
+
+def _dataset_fingerprint(data_dir):
+    return tuple(
+        (path.name, path.stat().st_size, path.stat().st_mtime_ns)
+        for path in sorted(Path(data_dir).expanduser().resolve().glob("*.npz"))
+    )
+
+
+def _pipeline_arguments(mode, data_dir, output_path):
+    if mode == "validate":
+        return "ft_free_space_validate", [
+            "--data-dir", str(data_dir), "--output", str(output_path)]
+    if mode == "train":
+        return "ft_free_space_train", [
+            "--data-dir", str(data_dir), "--output-dir", str(output_path)]
+    raise ValueError(f"unknown pipeline mode: {mode}")
 
 
 class SignalPlot(QWidget):
@@ -185,6 +202,7 @@ class CollectionRosNode(Node):
             "observer_input_topic": "/contact_state/observer_input",
             "command_pose_topic": "/right_dsr_controller/task_space_command",
             "collection_log_dir": "/tmp/ft_free_space_collection_gui_logs",
+            "data_dir": str(Path.home() / ".ros/ft_fb_leaderarm/data"),
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -331,6 +349,8 @@ class MainWindow(QMainWindow):
         self.last_event_sequence = -1
         self.started_monotonic = time.monotonic()
         self.status_labels = {}
+        self.pipeline_process = None
+        self.validated_dataset = None
         self._build_ui()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
@@ -374,7 +394,7 @@ class MainWindow(QMainWindow):
             button = QPushButton(text); button.clicked.connect(
                 lambda _checked=False, k=key: self.command(k, "gui_button")); controls.addWidget(button)
         layout.addLayout(controls)
-        tabs = QTabWidget(); tabs.addTab(self._dashboard_tab(), "Dashboard"); tabs.addTab(self._health_tab(), "Data Health"); tabs.addTab(self._logs_tab(), "Problem Logs")
+        tabs = QTabWidget(); tabs.addTab(self._dashboard_tab(), "Dashboard"); tabs.addTab(self._health_tab(), "Data Health"); tabs.addTab(self._pipeline_tab(), "Dataset / Training"); tabs.addTab(self._logs_tab(), "Problem Logs")
         layout.addWidget(tabs, 1); self.setCentralWidget(root)
 
     def _dashboard_tab(self):
@@ -406,9 +426,34 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.collector_details)
         return widget
 
+    def _pipeline_tab(self):
+        widget = QWidget(); layout = QVBoxLayout(widget)
+        self.data_dir = Path(
+            str(self.node.get_parameter("data_dir").value)
+        ).expanduser().resolve()
+        info = QLabel(
+            f"Dataset: {self.data_dir}\n"
+            "수집 중이 아니고 leader가 정지 상태일 때만 실행됩니다. "
+            "학습은 현재 dataset 검증을 통과한 뒤에만 허용됩니다.")
+        info.setWordWrap(True); layout.addWidget(info)
+        row = QHBoxLayout()
+        self.validate_button = QPushButton("VALIDATE DATASET")
+        self.train_button = QPushButton("TRAIN 5 ABLATIONS")
+        self.validate_button.clicked.connect(
+            lambda: self._start_pipeline("validate"))
+        self.train_button.clicked.connect(lambda: self._start_pipeline("train"))
+        self.train_button.setEnabled(False)
+        self.pipeline_status = self._badge("IDLE")
+        row.addWidget(self.validate_button); row.addWidget(self.train_button)
+        row.addWidget(self.pipeline_status); row.addStretch(1); layout.addLayout(row)
+        self.pipeline_output = QTextEdit(); self.pipeline_output.setReadOnly(True)
+        self.pipeline_output.setStyleSheet("font-family:monospace")
+        layout.addWidget(self.pipeline_output, 1)
+        return widget
+
     def _logs_tab(self):
         widget = QWidget(); layout = QVBoxLayout(widget); row = QHBoxLayout()
-        self.log_filter = QComboBox(); self.log_filter.addItems(["All","Error","Warning","Collector","Teleop","GUI","Launch"]); self.log_filter.currentTextChanged.connect(self._rebuild_logs)
+        self.log_filter = QComboBox(); self.log_filter.addItems(["All","Error","Warning","Collector","Teleop","GUI","Pipeline","Launch"]); self.log_filter.currentTextChanged.connect(self._rebuild_logs)
         clear = QPushButton("Clear View"); clear.clicked.connect(self._clear_log_view); copy = QPushButton("Copy Details"); copy.clicked.connect(self._copy_log)
         row.addWidget(QLabel("Filter")); row.addWidget(self.log_filter); row.addStretch(1); row.addWidget(copy); row.addWidget(clear); layout.addLayout(row)
         self.log_table = QTableWidget(0,7); self.log_table.setHorizontalHeaderLabels(["Timestamp","Severity","Source","Teleop","Episode","Message","Suggested action"])
@@ -431,6 +476,13 @@ class MainWindow(QMainWindow):
             and time.monotonic() - self.node.teleop_received <= 2.0)
         collecting = _collector_is_collecting(self.node.collector)
         teleop_state = str(self.node.teleop.get("state", "WAITING"))
+        if self.pipeline_process is not None and key in "1ctozr":
+            message = (
+                "Dataset 검증/학습이 실행 중입니다. 완료 후 수집 또는 이동을 "
+                "시작하세요. STOP, PAUSE, SHUTDOWN은 계속 사용할 수 있습니다.")
+            self._event("WARN", "GUI", message, dedup_sec=1.0)
+            QMessageBox.warning(self, "Offline job 실행 중", message)
+            return
         if key == "1" and (not teleop_fresh or teleop_state != "IDLE"):
             message = (
                 "START FT EPISODE 차단: leader를 POSITION 정렬 완료 상태(IDLE)에 "
@@ -456,6 +508,98 @@ class MainWindow(QMainWindow):
             return
         self._call(key, input_source)
 
+    def _start_pipeline(self, mode):
+        state = str(self.node.teleop.get("state", "WAITING"))
+        if self.pipeline_process is not None:
+            return
+        if self.node.pending_services:
+            message = "진행 중인 ROS 명령의 완료를 확인한 뒤 다시 실행하세요."
+            self._event("WARN", "Pipeline", message)
+            QMessageBox.warning(self, "Dataset 작업 차단", message)
+            return
+        if _collector_is_collecting(self.node.collector) or state not in (
+                "IDLE", "PAUSED", "SHUTDOWN", "WAITING"):
+            message = (
+                "먼저 FT episode를 중지하고 leader를 IDLE/PAUSED/SHUTDOWN "
+                f"상태로 두세요. 현재 Teleop 상태는 {state}입니다.")
+            self._event("WARN", "Pipeline", message)
+            QMessageBox.warning(self, "Dataset 작업 차단", message)
+            return
+        fingerprint = _dataset_fingerprint(self.data_dir)
+        if mode == "train" and self.validated_dataset != (
+                self.data_dir, fingerprint):
+            message = "현재 dataset을 VALIDATE DATASET으로 먼저 검증하세요."
+            self._event("WARN", "Pipeline", message)
+            QMessageBox.warning(self, "학습 차단", message)
+            return
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        output = (
+            self.data_dir / f"dataset_validation_{stamp}.json"
+            if mode == "validate" else
+            self.data_dir / "models" / f"free_space_{stamp}")
+        executable, arguments = _pipeline_arguments(mode, self.data_dir, output)
+        script = Path(__file__).with_name(executable)
+        if not script.is_file():
+            message = f"실행 파일을 찾을 수 없습니다: {script}"
+            self._event("ERROR", "Pipeline", message)
+            QMessageBox.critical(self, "Dataset 작업 실패", message)
+            return
+        process = QProcess(self)
+        process.setProcessChannelMode(QProcess.MergedChannels)
+        process.readyReadStandardOutput.connect(
+            lambda p=process: self._pipeline_output_ready(p))
+        process.finished.connect(
+            lambda code, _status, p=process, m=mode, d=self.data_dir,
+                   o=output, f=fingerprint:
+            self._pipeline_finished(p, m, d, o, f, code))
+        self.pipeline_process = process
+        self.pipeline_output.setPlainText(
+            " ".join([sys.executable, str(script), *arguments]) + "\n")
+        self.pipeline_status.setText(
+            "VALIDATING" if mode == "validate" else "TRAINING")
+        self._event("INFO", "Pipeline", f"{mode} started: {output}")
+        process.start(sys.executable, [str(script), *arguments])
+        if not process.waitForStarted(1000):
+            message = process.errorString()
+            self.pipeline_process = None
+            process.deleteLater()
+            self.pipeline_status.setText("FAILED")
+            self._event("ERROR", "Pipeline", f"{mode} start failed: {message}")
+            QMessageBox.critical(self, "Dataset 작업 실패", message)
+
+    def _pipeline_output_ready(self, process):
+        chunk = bytes(process.readAllStandardOutput()).decode(
+            "utf-8", errors="replace")
+        self.pipeline_output.moveCursor(QTextCursor.End)
+        self.pipeline_output.insertPlainText(chunk)
+        self.pipeline_output.ensureCursorVisible()
+
+    def _pipeline_finished(
+            self, process, mode, data_dir, output, fingerprint, exit_code):
+        self._pipeline_output_ready(process)
+        if self.pipeline_process is process:
+            self.pipeline_process = None
+        current = _dataset_fingerprint(data_dir)
+        passed = exit_code == 0 and current == fingerprint
+        if mode == "validate" and passed:
+            self.validated_dataset = (data_dir, fingerprint)
+            result = "VALIDATED"
+        elif mode == "train" and exit_code == 0:
+            result = "APPROVED"
+        elif mode == "train" and exit_code == 2:
+            result = "REJECTED"
+        else:
+            result = "FAILED"
+        if current != fingerprint:
+            result = "DATASET CHANGED"
+            self.validated_dataset = None
+        self.pipeline_status.setText(result)
+        severity = "INFO" if passed else "WARN"
+        self._event(
+            severity, "Pipeline",
+            f"{mode} finished result={result} exit={exit_code}: {output}")
+        process.deleteLater()
+
     def _call(self, key, input_source="gui"):
         self.node.call(
             key,
@@ -473,6 +617,7 @@ class MainWindow(QMainWindow):
             self._event("WARN", "GUI", f"명령 {key}: {message}")
             QMessageBox.warning(self, "명령 거부", message)
         elif key == "1":
+            self.validated_dataset = None
             QMessageBox.information(
                 self, "FT 수집 시작 성공",
                 "FT episode가 시작되었습니다. FT Collector 배지가 RECORDING으로 "
@@ -551,6 +696,12 @@ class MainWindow(QMainWindow):
             ("#16784a" if ready else "#8a3c30"))
         self._refresh_joints(teleop); self._refresh_poses(); self._refresh_plots()
         self._refresh_health(collector)
+        busy = self.pipeline_process is not None
+        offline_safe = not collecting and state in (
+            "IDLE", "PAUSED", "SHUTDOWN", "WAITING")
+        self.validate_button.setEnabled(not busy and offline_safe)
+        self.train_button.setEnabled(
+            not busy and offline_safe and self.validated_dataset is not None)
         self._check_timeouts()
         _events, sequence = self.event_store.snapshot()
         if sequence != self.last_event_sequence:

@@ -64,7 +64,7 @@ def test_integrated_launch_uses_only_local_teleop_executable():
     assert "0.20, 0.40, 0.80" not in launch
 
 
-def test_free_space_gui_is_local_and_requires_collection_before_current():
+def test_free_space_gui_is_local_and_requires_collection_before_current(tmp_path):
     path = PACKAGE_ROOT / "scripts/ft_free_space_collection_gui.py"
     source = path.read_text()
     tree = ast.parse(source, filename=str(path))
@@ -85,12 +85,43 @@ def test_free_space_gui_is_local_and_requires_collection_before_current():
     assert is_collecting({"collecting": True})
     assert not is_collecting({"collecting": False})
     assert not is_collecting(None)
+    helpers = {
+        node.name: node for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name in ("_dataset_fingerprint", "_pipeline_arguments")
+    }
+    helper_namespace = {"Path": Path}
+    exec(
+        compile(
+            ast.fix_missing_locations(
+                ast.Module(body=list(helpers.values()), type_ignores=[])),
+            str(path), "exec"),
+        helper_namespace,
+    )
+    pipeline_arguments = helper_namespace["_pipeline_arguments"]
+    assert pipeline_arguments("validate", "/data", "/report.json") == (
+        "ft_free_space_validate",
+        ["--data-dir", "/data", "--output", "/report.json"],
+    )
+    assert pipeline_arguments("train", "/data", "/model") == (
+        "ft_free_space_train",
+        ["--data-dir", "/data", "--output-dir", "/model"],
+    )
+    first = tmp_path / "first.npz"
+    first.write_bytes(b"1")
+    before = helper_namespace["_dataset_fingerprint"](tmp_path)
+    first.write_bytes(b"changed")
+    assert helper_namespace["_dataset_fingerprint"](tmp_path) != before
     assert 'collector = "/ft_free_space_collector/"' in source
     assert '"1": collector+"start_episode"' in source
     assert '"2": collector+"stop_episode"' in source
     assert 'if key == "1" and (not teleop_fresh or teleop_state != "IDLE"):' in source
     assert 'if key in ("c", "t", "o") and (' in source
     assert "Teleoperation 차단" in source
+    assert "QProcess" in source
+    assert "self.validated_dataset" in source
+    assert "self.node.pending_services" in source
+    assert 'key in "1ctozr"' in source
     assert "/chem_acp_raw_data_collection" not in source
     assert "/bae_r/observer_input" not in source
     imported_modules = {
@@ -114,6 +145,7 @@ def test_free_space_gui_is_local_and_requires_collection_before_current():
     assert "scripts/ft_free_space_collection_gui.py" in cmake
     assert 'package="ft_fb_leaderarm"' in launch
     assert 'executable="ft_free_space_collection_gui.py"' in launch
+    assert 'parameters=[{"data_dir": LaunchConfiguration("output_dir")}]' in launch
     assert 'package="fb_leaderarm"' not in launch
 
 

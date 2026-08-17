@@ -49,6 +49,7 @@ def generate_launch_description():
                 executable="ft_free_space_collection_gui.py",
                 name="ft_free_space_collection_gui",
                 output="screen",
+                parameters=[{"data_dir": LaunchConfiguration("output_dir")}],
                 additional_env={"PYTHONPATH": _pythonpath_with_system_qt()},
             ),
         ]

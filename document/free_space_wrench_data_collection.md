@@ -365,6 +365,10 @@ tare_YYYYMMDD_03
 
 3개 이상을 모은 뒤 실행한다.
 
+수집 GUI의 `Dataset / Training` 탭에서도 현재 launch의 `output_dir`를 검증하고,
+검증을 통과한 동일 dataset으로 5개 ablation 학습을 실행할 수 있다. 수집 또는
+leader 이동 중에는 실행할 수 없으며 결과 경로와 진행 로그는 같은 탭에 표시된다.
+
 ```bash
 ros2 run ft_fb_leaderarm ft_free_space_validate -- \
   --data-dir "${FT_DATA_DIR}" \
