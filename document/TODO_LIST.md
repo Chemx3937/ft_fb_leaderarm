@@ -31,14 +31,14 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## 다음 실행 작업
 
-기록일: `2026-08-18 KST (+0900)`
+기록일: `2026-08-19 KST (+0900)`
 
 | 순서 | 담당 | 다음 작업 | 완료 기준 | 상태 |
 |---:|---|---|---|---|
-| 1 | 사용자 | 시작 자세, tool/payload/controller/frame과 수집 안전 조건 재확인 | FS-01 계약과 현재 장비 상태 일치 | 대기 |
-| 2 | 사용자 | 승인 후 첫 SLOW 무접촉 episode를 새 `zero_set_id`로 재수집 | `20~30초`, `accepted=true`, 접촉 0회 | 대기: 기존 첫 파일은 `74.757초` |
-| 3 | 사용자 | 독립 `zero_set_id` 최소 3개, 권장 8~10개 수집 | payload/controller/frame 혼합 없는 dataset | 대기 |
-| 4 | 검증 | dataset validator와 5개 ablation 학습 실행 | FS-02~04 report 통과, 승인 모델 생성 | 대기 |
+| 1 | 사용자 | 시작 자세, tool/payload/controller/frame과 수집 안전 조건 재확인 | FS-01 계약과 현재 장비 상태 일치 | 완료 |
+| 2 | 사용자 | FAST-only task 무접촉 episode 3개 수집 | 각 `accepted=true`, 접촉 0회 | 완료: `tare_02~04` |
+| 3 | 사용자 | 다양한 궤적 10개와 최소 7개 추가 독립 zero group 수집 | payload/controller/frame 혼합 없는 dataset | 대기 |
+| 4 | 검증 | 확대 dataset validator와 5개 ablation 재학습 | FS-02~04 report 통과, 승인 모델 생성 | pilot FS-02/04 PASS, FS-03 FAIL |
 | 5 | 사용자→검증 | observer-only FREE evidence 수집 | FS-05~06, CO-01~03 report 통과 | 대기 |
 | 6 | 사용자→검증 | ground truth 절차·CO-04 기준 확정 후 controlled contact 평가 | CO-04 report 통과 | 대기 |
 | 7 | 사용자→검증 | FB-02 기준 확정 후 feedback OFF→40%→100% 분석·승인 | FB-01, FB-02, FB-04 report 통과 | 대기 |
@@ -89,39 +89,39 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 ## Phase 2: 데이터 수집
 
 - [x] `/tmp` 정지 smoke episode 저장과 262.5 Hz/gap/sync 검증
-- [ ] 최소 3개 독립 `zero_set_id` 확보
+- [x] 최소 3개 독립 `zero_set_id` 확보
 - [ ] 권장 8~10개 group을 시간대·재기동 조건으로 수집
 - [ ] 각 group에서 저속/고속, 가속/감속, joint/Cartesian 동작 포함
-- [ ] 첫 episode를 zero pose에서 시작한 뒤 leader CURRENT 전환 transient 포함 확인
+- [x] CURRENT/SLOW를 제외하고 FAST부터 저장하는 gate 확인
 - [x] `ft_fb_leaderarm` 전용 GUI에
   `collector START 성공 → CURRENT → SLOW → 접촉 전 STOP` 순서와 gate 사유를 표시
-- [ ] 모든 episode가 완전 무접촉인지 확인
+- [x] pilot 3개가 완전 무접촉인지 확인
 - [ ] 접촉 직전에 반드시 collector stop
 - [ ] tool/payload/controller가 바뀐 episode를 분리
 
 ## Phase 3: 데이터 검증
 
-- [ ] `ft_free_space_validate` 실행
-- [ ] rejected episode가 없는지 확인
-- [ ] sample rate, gap, timestamp, frame 확인
+- [x] clean pilot에 `ft_free_space_validate` 실행
+- [x] clean pilot의 3개 episode가 모두 accepted인지 확인
+- [x] pilot sample rate, gap, timestamp, frame 확인
 - [ ] 실제 sensor acquisition rate와 ROS publish rate 차이를 metadata/report에 반영
 - [ ] 첫 동적 episode에서 raw와 4 ms causal 평균의 residual/contact latency 비교
 - [ ] [ObserverInput-AFT 시간 정렬 체크리스트](FTsensor_check_list.md#observerinput-aft-시간-정렬-검증과-향후-개선) 측정과 개선 착수 조건 판정
-- [ ] train/validation/test가 `zero_set_id` 단위로 분리됐는지 확인
-- [ ] dataset validation report 보존
+- [x] train/validation/test가 `zero_set_id` 단위로 분리됐는지 확인
+- [x] pilot dataset validation report 보존
 
 ## Phase 4: 학습·비교
 
-- [ ] static linear 학습
-- [ ] dynamic MLP 학습
-- [ ] history MLP 학습
-- [ ] history LSTM 학습
-- [ ] history GRU 학습
-- [ ] validation 최대/p95/RMSE 비교
-- [ ] 선택 후 held-out test는 한 번만 평가
-- [ ] validation/test 최대 force-vector 오차 1 N 이하 확인
-- [ ] inference p99 3.048 ms, max 3.810 ms 이하 확인
-- [ ] `metadata.json`의 `approved=true` 확인
+- [x] pilot static linear 학습
+- [x] pilot dynamic MLP 학습
+- [x] pilot history MLP 학습
+- [x] pilot history LSTM 학습
+- [x] pilot history GRU 학습
+- [x] pilot validation 최대/p95/RMSE 비교
+- [x] pilot 선택 후 held-out test를 한 번만 평가
+- [ ] validation/test 최대 force-vector 오차 1 N 이하 확인: `4.295/2.733 N`
+- [x] inference p99 3.048 ms, max 3.810 ms 이하 확인: `0.0261/0.0489 ms`
+- [ ] `metadata.json`의 `approved=true` 확인: pilot은 `false`
 
 ## Phase 5: Observer-only 실기 검증
 
