@@ -249,6 +249,9 @@ ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py \
 중복 입력을 막기 위해 비활성화된다. teleop을 이미 별도 terminal에서 실행했다면
 `start_teleop:=false`로 실행하여 node 중복을 피한다.
 
+키는 terminal이 아니라 활성화된 GUI 창에서 입력한다. 종료할 때는 GUI의 `q`를 한 번
+누르고 `SHUTDOWN Done`을 확인한 뒤 launch terminal에서 `Ctrl+C`를 한 번 누른다.
+
 GUI에서 다음 상태를 기다린다.
 
 ```text

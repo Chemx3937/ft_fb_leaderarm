@@ -138,6 +138,13 @@ def test_free_space_gui_is_local_and_requires_collection_before_current(tmp_path
     assert 'if key in ("c", "t", "o") and (' in source
     assert "Teleoperation 차단" in source
     assert "QProcess" in source
+    assert "QShortcut(QKeySequence(key), self)" in source
+    assert "shortcut.setContext(Qt.WindowShortcut)" in source
+    assert "def keyPressEvent" not in source
+    assert "signal.signal(signal.SIGINT, lambda *_args: app.quit())" in source
+    assert "signal.signal(signal.SIGINT, signal.SIG_IGN)" in source
+    assert "executor.spin()" in source
+    assert "executor.spin_once" not in source
     assert "self.validated_dataset" in source
     assert "self.node.pending_services" in source
     assert 'key in "1ctozr"' in source

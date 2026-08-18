@@ -294,6 +294,10 @@ ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py \
 GUI 없이 터미널만 사용할 때는 launch 파일 이름만
 `collect_free_space.launch.py`로 바꾼다.
 
+통합 launch에서는 terminal keyboard가 의도적으로 꺼져 있으므로 키는 활성화된 GUI
+창에서 입력한다. 종료는 GUI에서 `q` 한 번 → `SHUTDOWN Done` 확인 → launch
+terminal에서 `Ctrl+C` 한 번 순서로 수행한다.
+
 `YYYYMMDD`는 실제 날짜로 교체한다. launch 인자만 확인하려면 collector에
 `--ros-args --help`를 붙이지 말고 다음 명령을 사용한다.
 
