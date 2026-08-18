@@ -71,9 +71,9 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] 설정 zero 자세 재복귀 후 sensor2 zero-set2 수행 ([`FT-20260808-03`](problem/FT-20260808-03.md) CLOSED)
 - [x] 같은 tare의 0/15/30/60/120분 post-zero drift 기록
   ([`FT-20260808-01`](problem/FT-20260808-01.md) OPEN)
-- [ ] AFT cold power-on 후 0/15/30/60/120분 warm-up drift 기록
-  (다음 실험 세션, 약 2시간 15분;
-  [`FT-20260808-01`](problem/FT-20260808-01.md) 계획 참고)
+- [x] AFT cold power-on 후 0/15/30/60/120분 warm-up drift 기록
+  (2026-08-18/19 완료; 앞선 단조 Fz drift는 재현되지 않았으나 30분 gate 실패;
+  [`FT-20260808-01`](problem/FT-20260808-01.md) 결과 참고)
 - [x] 같은 조건에서 hardware zero-set 10회 반복
   ([`FT-20260808-01`](problem/FT-20260808-01.md) OPEN)
 - [ ] zero마다 여러 고정 자세 왕복 측정
