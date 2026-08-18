@@ -69,8 +69,13 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] 수정본을 `aft_zero_set2.py`로 분리하고 격리 회귀 test ([`FT-20260808-02`](problem/FT-20260808-02.md) MITIGATED)
 - [x] zero-set2 launch를 단일 `sensor_name` 선택 방식으로 구성, 기본 `aft_sensor2`
 - [x] 설정 zero 자세 재복귀 후 sensor2 zero-set2 수행 ([`FT-20260808-03`](problem/FT-20260808-03.md) CLOSED)
-- [ ] 전원 ON 후 0/15/30/60/120분 warm-up drift 기록
-- [ ] 같은 조건에서 hardware zero-set 10회 반복
+- [x] 같은 tare의 0/15/30/60/120분 post-zero drift 기록
+  ([`FT-20260808-01`](problem/FT-20260808-01.md) OPEN)
+- [ ] AFT cold power-on 후 0/15/30/60/120분 warm-up drift 기록
+  (다음 실험 세션, 약 2시간 15분;
+  [`FT-20260808-01`](problem/FT-20260808-01.md) 계획 참고)
+- [x] 같은 조건에서 hardware zero-set 10회 반복
+  ([`FT-20260808-01`](problem/FT-20260808-01.md) OPEN)
 - [ ] zero마다 여러 고정 자세 왕복 측정
 - [ ] 재부팅 전후 반복성 확인
 - [ ] 케이블 strain, 온도, EMI, overload 회복 확인
