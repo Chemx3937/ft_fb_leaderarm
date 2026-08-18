@@ -1,5 +1,9 @@
 import numpy as np
 
+from ft_fb_leaderarm.collector_node import (
+    _fresh_fast_state,
+    _teleop_state_from_json,
+)
 from ft_fb_leaderarm.contract import (
     BASE_FEATURE_DIM,
     CausalFeatureBuilder,
@@ -103,3 +107,11 @@ def test_episode_timing_rejects_a_hidden_long_gap():
     with_gap = good.copy()
     with_gap[1000:] += 0.011
     assert not episode_timing_quality(with_gap)["accepted"]
+
+
+def test_fast_recording_gate_requires_fresh_fast_status():
+    assert _teleop_state_from_json('{"state":"FAST"}') == "FAST"
+    assert _teleop_state_from_json("not-json") == ""
+    assert _fresh_fast_state("FAST", 10.0, 10.4, 0.5)
+    assert not _fresh_fast_state("SLOW", 10.0, 10.1, 0.5)
+    assert not _fresh_fast_state("FAST", 10.0, 10.6, 0.5)

@@ -30,6 +30,7 @@ def generate_launch_description():
         DeclareLaunchArgument("payload_id"),
         DeclareLaunchArgument("controller_config_hash"),
         DeclareLaunchArgument("auto_start", default_value="false"),
+        DeclareLaunchArgument("record_only_fast", default_value="true"),
         DeclareLaunchArgument("start_teleop", default_value="false"),
         DeclareLaunchArgument(
             "leader_config",
@@ -43,6 +44,7 @@ def generate_launch_description():
         for name in (
             "config", "output_dir", "zero_set_confirmed", "zero_set_id",
             "payload_id", "controller_config_hash", "auto_start",
+            "record_only_fast",
         )
     }
     return LaunchDescription(

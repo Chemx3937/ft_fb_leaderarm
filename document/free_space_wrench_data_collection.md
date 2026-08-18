@@ -26,7 +26,7 @@ contact_wrench = bias-removed physical FT raw - predicted free-space wrench
 |---|---|
 | Zero Gate | 새 episode를 시작할 수 있는지 표시한다. `VERIFIED`이면 시작 가능하다. |
 | Teleop | `IDLE`, `CURRENT`, `SLOW`, `FAST`, `PAUSE` 등 leader 상태다. |
-| FT Collector | `IDLE` 또는 `RECORDING`을 표시한다. |
+| FT Collector | `IDLE`, `ARMED`, `RECORDING`을 표시한다. |
 | System | teleop/collector 통신과 gate를 종합한 상태다. |
 | Samples | 현재 episode에 저장된 row 수다. |
 | START FT EPISODE | `/ft_free_space_collector/start_episode`를 호출한다. |
@@ -34,14 +34,14 @@ contact_wrench = bias-removed physical FT raw - predicted free-space wrench
 | Data Health | `force_median_n`, `force_std_n`, gate reason 등 원본 diagnostics다. |
 | Problem Logs | START 거부와 service 오류의 원문을 보여준다. |
 
-`START FT EPISODE` 성공 전에는 GUI가 CURRENT/SLOW/FAST를 차단한다. 수집이 시작된
+`START FT EPISODE` 성공 전에는 GUI가 CURRENT/SLOW/FAST를 차단한다. episode가 ARM된
 뒤에는 Zero Gate가 `LATCHED`로 표시된다. 이는 robot이 fixed zero pose를 벗어나
-live `zero.ready=false`가 되어도 이미 승인된 episode는 계속 기록된다는 뜻이다.
+live `zero.ready=false`가 되어도 episode가 유지되고 FAST에서만 기록된다는 뜻이다.
 
 ## 실행 전 원칙
 
 - robot/leader를 움직이는 명령은 운용자가 주변 안전을 확인한 뒤 직접 실행한다.
-- 첫 episode는 `20~30초`, SLOW, 완전 무접촉으로 제한한다.
+- 정식 episode는 FAST에서만 기록하며 완전 무접촉으로 수행한다.
 - AFT cable이 당겨지거나 robot/tool에 닿지 않게 고정한다.
 - tool, payload, controller 설정은 현재 사용 중인 상태를 변경하지 않는다.
 - 접촉하기 전에 leader 움직임을 멈추고 episode를 종료한다.
@@ -275,11 +275,12 @@ ros2 service call /ft_free_space_collector/start_episode \
   std_srvs/srv/Trigger {}
 ```
 
-성공 조건은 service의 `success=true`와 GUI의 `FT Collector=RECORDING`이다. median
-norm이 `1.0 N`을 넘으면 `zero_force_offset_too_large`, 축 STD가 `0.40 N`을 넘으면
+성공 조건은 service의 `success=true`와 GUI의 `FT Collector=ARMED`이다. 이때 samples는
+아직 증가하지 않으며 FAST 상태가 확인되면 `RECORDING`으로 바뀐다. median norm이
+`1.0 N`을 넘으면 `zero_force_offset_too_large`, 축 STD가 `0.40 N`을 넘으면
 `zero_force_noise_too_large`로 START만 거부된다. AFT publish와 robot은 중단되지 않는다.
 
-### 10. 운용자가 CURRENT와 SLOW로 전환
+### 10. 운용자가 CURRENT와 SLOW로 정렬
 
 GUI에서 `CURRENT (c)`를 누른 뒤 `Teleop=CURRENT`를 확인하고 `SLOW (t)`를 누른다.
 이 두 동작은 leader/follower에 영향을 주므로 운용자가 직접 실행한다. 동일한 service
@@ -297,13 +298,14 @@ ros2 service call /leader_teleop_node/command/slow \
 ros2 topic echo /leader_teleop_node/status --once
 ```
 
-CURRENT 전환 순간 leader pose가 조금 변해 follower가 움직이는 구간도 정상적인
-free-space transient로 같은 episode에 기록된다. 첫 episode에서는 FAST를 사용하지
-않는다.
+CURRENT 전환 순간과 SLOW 정렬 중 follower가 움직여도 이 구간은 저장하지 않는다.
+수집기는 최신 teleop 상태가 `FAST`일 때만 sample을 저장한다.
 
-### 11. 20~30초 동안 SLOW 무접촉 동작
+### 11. FAST에서 무접촉 task 동작 기록
 
-운용자가 leader를 천천히 움직인다. 다음 항목을 포함하되 접촉은 없어야 한다.
+SLOW 정렬이 끝나면 운용자가 `FAST (o)`를 누른다. GUI에서 `Teleop=FAST`,
+`FT Collector=RECORDING`, `samples` 증가를 확인한 뒤 목표 task 궤적을 수행한다.
+다음 항목을 포함하되 접촉은 없어야 한다.
 
 - 여러 joint의 양방향 움직임
 - 완만한 가속과 감속
@@ -316,8 +318,9 @@ free-space transient로 같은 episode에 기록된다. 첫 episode에서는 FAS
 ros2 topic echo /ft_free_space_collector/diagnostics --once
 ```
 
-`collecting=true`, `samples` 증가, `sync_rejections=0`, `invalid_rejections=0`이
-기대값이다. 수집 중 `Zero Gate=LATCHED`는 정상이다.
+`collecting=true`, `recording=true`, `teleop_state=FAST`, `samples` 증가,
+`sync_rejections=0`, `invalid_rejections=0`이 기대값이다. 수집 중
+`Zero Gate=LATCHED`는 정상이다.
 
 ### 12. 접촉 전에 정지하고 episode 저장
 
@@ -396,9 +399,10 @@ jq . "${FT_DATA_DIR}/dataset_validation_v1.json"
 3. SBC에서 sample rate `500` one-shot과 `aft_zero_set2`를 실행한다.
 4. PC에서 `collect_free_space_gui.launch.py`를 고유 `zero_set_id`로 실행한다.
 5. GUI가 `VERIFIED/IDLE/IDLE/OK`이면 START한다.
-6. 운용자가 `CURRENT → SLOW`로 전환하여 20~30초 무접촉으로 움직인다.
-7. 움직임 정지 → PAUSE → 접촉 전 STOP 순서로 저장한다.
-8. 생성된 `.npz`와 `.json` 경로를 기록하고 검증한다.
+6. 운용자가 `CURRENT → SLOW`로 전환하여 정렬한다. 이 구간은 저장되지 않는다.
+7. `FAST`로 전환한 뒤 무접촉 task 궤적을 수행한다.
+8. 움직임 정지 → PAUSE → 접촉 전 STOP 순서로 저장한다.
+9. 생성된 `.npz`와 `.json` 경로를 기록하고 검증한다.
 
 더 상세한 일반 명령과 문제 대응은 [실행 명령](command.md), AFT gate와 rate 근거는
 [AFT 센서 이슈](AFT_sensor_issue.md)를 참고한다.

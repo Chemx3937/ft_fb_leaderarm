@@ -79,6 +79,12 @@ def _collector_is_collecting(status):
     return bool(status.get("collecting"))
 
 
+def _collector_is_recording(status):
+    if not isinstance(status, dict):
+        return False
+    return bool(status.get("recording"))
+
+
 def _dataset_fingerprint(data_dir):
     return tuple(
         (path.name, path.stat().st_size, path.stat().st_mtime_ns)
@@ -378,8 +384,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.next_label)
         guide = QLabel(
             "순서: POSITION 정렬 → AFT zero-set·Zero Gate VERIFIED → "
-            "START FT EPISODE 성공 → CURRENT → SLOW 무접촉 → 접촉 전 STOP FT EPISODE\n"
-            "CURRENT/SLOW/FAST는 FT Collector가 RECORDING일 때만 허용됩니다.")
+            "START로 ARM → CURRENT → SLOW 정렬 → FAST 무접촉 기록 → "
+            "PAUSE → STOP FT EPISODE\n"
+            "CURRENT/SLOW 데이터는 저장하지 않고 FAST 상태만 저장합니다.")
         guide.setWordWrap(True)
         guide.setStyleSheet(
             "padding:8px;background:#594a1d;color:#fff3bf;font-weight:bold")
@@ -494,14 +501,15 @@ class MainWindow(QMainWindow):
                 not collector_fresh or not collecting):
             message = (
                 "Teleoperation 차단: 먼저 Zero Gate VERIFIED 상태에서 START FT "
-                "EPISODE가 성공하고 FT Collector 배지가 RECORDING인지 확인하세요."
+                "EPISODE가 성공하고 FT Collector 배지가 ARMED인지 확인하세요."
             )
             self._event("WARN", "GUI", message, dedup_sec=1.0)
             QMessageBox.warning(self, "Teleoperation 차단", message)
             return
         if key in ("z", "r") and collecting:
             message = (
-                "FT Collector가 RECORDING 중입니다. 먼저 2로 episode를 저장한 뒤 "
+                "FT Collector가 ARMED/RECORDING 중입니다. 먼저 2로 episode를 "
+                "저장한 뒤 "
                 "INIT POSE/REALIGN을 실행하세요.")
             self._event("WARN", "GUI", message, dedup_sec=1.0)
             QMessageBox.warning(self, "이동 명령 차단", message)
@@ -620,8 +628,8 @@ class MainWindow(QMainWindow):
             self.validated_dataset = None
             QMessageBox.information(
                 self, "FT 수집 시작 성공",
-                "FT episode가 시작되었습니다. FT Collector 배지가 RECORDING으로 "
-                "바뀐 뒤 CURRENT를 누르세요. 접촉 전 반드시 2로 중지하세요.")
+                "FT episode가 ARMED 상태입니다. CURRENT → SLOW로 정렬한 뒤 "
+                "FAST부터 기록됩니다. 접촉 전 반드시 PAUSE와 2로 중지하세요.")
         elif key == "2":
             QMessageBox.information(self, "FT 수집 종료", message)
 
@@ -651,6 +659,7 @@ class MainWindow(QMainWindow):
             not self.node.collector_received
             or now-self.node.collector_received > 2.5)
         collecting = _collector_is_collecting(collector)
+        recording = _collector_is_recording(collector)
         zero = collector.get("zero", {})
         if not isinstance(zero, dict):
             zero = {}
@@ -662,7 +671,8 @@ class MainWindow(QMainWindow):
             "VERIFIED" if zero_ready else zero_reason)
         collector_state = (
             "OFFLINE" if collector_missing else
-            "RECORDING" if collecting else "IDLE")
+            "RECORDING" if recording else
+            "ARMED" if collecting else "IDLE")
         dxl_fault = bool(teleop.get("dxl_fault", False))
         if teleop_missing or collector_missing:
             overall = "WAITING" if now-self.started_monotonic < 5.0 else "ERROR"
@@ -680,9 +690,13 @@ class MainWindow(QMainWindow):
         if collector_missing:
             instruction = "FT Collector diagnostics 대기 중"
             ready = False
+        elif recording:
+            instruction = (
+                "FAST 기록 중: 무접촉 task를 수행하고 접촉 전에 PAUSE → STOP")
+            ready = True
         elif collecting:
             instruction = (
-                "수집 중: CURRENT → SLOW 무접촉 동작, 접촉 전에 STOP FT EPISODE")
+                "ARMED: CURRENT → SLOW 정렬 후 FAST로 전환하면 기록 시작")
             ready = True
         elif zero_ready:
             instruction = "Zero Gate VERIFIED: START FT EPISODE를 누르세요"
@@ -723,7 +737,8 @@ class MainWindow(QMainWindow):
 
     def _set_badge(self,key,value):
         good = str(value) in (
-            "FAST", "READY", "RECORDING", "OK", "VERIFIED", "LATCHED")
+            "FAST", "READY", "ARMED", "RECORDING", "OK", "VERIFIED",
+            "LATCHED")
         bad = (
             "ERROR" in str(value)
             or str(value) in (

@@ -46,12 +46,26 @@ def sensor_qos():
     )
 
 
+def _teleop_state_from_json(payload):
+    try:
+        state = json.loads(payload).get("state", "")
+    except (AttributeError, json.JSONDecodeError, TypeError):
+        return ""
+    return state if isinstance(state, str) else ""
+
+
+def _fresh_fast_state(state, received_s, now_s, timeout_s):
+    age_s = now_s - received_s
+    return state == "FAST" and 0.0 <= age_s <= timeout_s
+
+
 class PhysicalFtCollector(Node):
     def __init__(self):
         super().__init__("ft_free_space_collector")
         defaults = {
             "observer_input_topic": "/contact_state/observer_input",
             "ft_topic": "/aft_sensor2/wrench",
+            "teleop_status_topic": "/leader_teleop_node/status",
             "observer_input_frame": "right_base_link",
             "ft_frame": "aft_sensor2",
             "output_dir": str(Path.home() / ".ros/ft_fb_leaderarm/data"),
@@ -63,6 +77,8 @@ class PhysicalFtCollector(Node):
             "max_duration_s": 300.0,
             "minimum_episode_s": 10.0,
             "auto_start": False,
+            "record_only_fast": False,
+            "teleop_status_timeout_s": 0.5,
             "zero_set_confirmed": False,
             "zero_set_id": "",
             "payload_id": "",
@@ -102,6 +118,14 @@ class PhysicalFtCollector(Node):
             str(self.get_parameter("output_dir").value)
         ).expanduser()
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.record_only_fast = bool(
+            self.get_parameter("record_only_fast").value
+        )
+        self.teleop_status_timeout_s = float(
+            self.get_parameter("teleop_status_timeout_s").value
+        )
+        self.teleop_state = ""
+        self.teleop_status_receive_monotonic_s = 0.0
 
         self.zero_verifier = FixedPoseZeroVerifier(
             zero_pose_deg=self.get_parameter("zero_pose_deg").value,
@@ -142,6 +166,12 @@ class PhysicalFtCollector(Node):
             self.ft_callback,
             qos,
         )
+        self.create_subscription(
+            String,
+            str(self.get_parameter("teleop_status_topic").value),
+            self.teleop_status_callback,
+            10,
+        )
         self.diagnostics_publisher = self.create_publisher(
             String, "~/diagnostics", 10
         )
@@ -150,10 +180,14 @@ class PhysicalFtCollector(Node):
         self.create_timer(1.0, self.publish_diagnostics)
         self.get_logger().info(
             f"physical FT collector ready: right arm, {self.sample_hz:.1f} Hz, "
-            f"FT={self.get_parameter('ft_topic').value}, output={self.output_dir}"
+            f"FT={self.get_parameter('ft_topic').value}, output={self.output_dir}, "
+            f"record_only_fast={self.record_only_fast}"
         )
 
     def reset_episode(self):
+        self.recording_started = False
+        self.recording_start_monotonic_s = 0.0
+        self.recording_start_utc = ""
         self.rows = {
             "stamp_s": [],
             "robot_stamp_s": [],
@@ -169,6 +203,27 @@ class PhysicalFtCollector(Node):
         self.invalid_rejections = 0
         self.duplicate_state_rejections = 0
         self.last_recorded_source_sequence = None
+
+    def teleop_status_callback(self, msg):
+        self.teleop_state = _teleop_state_from_json(msg.data)
+        self.teleop_status_receive_monotonic_s = (
+            time.monotonic() if self.teleop_state else 0.0
+        )
+
+    def fast_state_ready(self, now_monotonic_s):
+        return not self.record_only_fast or _fresh_fast_state(
+            self.teleop_state,
+            self.teleop_status_receive_monotonic_s,
+            now_monotonic_s,
+            self.teleop_status_timeout_s,
+        )
+
+    def begin_recording(self, now_monotonic_s):
+        self.recording_started = True
+        self.recording_start_monotonic_s = now_monotonic_s
+        self.recording_start_utc = datetime.now(timezone.utc).isoformat()
+        self.rate_gate.reset()
+        self.feature_builder.reset()
 
     def state_callback(self, msg):
         q = finite_vector(msg.q_rad, 6)
@@ -198,7 +253,6 @@ class PhysicalFtCollector(Node):
         }
 
     def ft_callback(self, msg):
-        self.ft_callbacks += 1
         wrench = wrench_from_message(msg)
         ft_stamp_s = stamp_to_seconds(msg.header.stamp)
         now_monotonic_s = time.monotonic()
@@ -237,6 +291,12 @@ class PhysicalFtCollector(Node):
 
         if not self.collecting:
             return
+        if not self.fast_state_ready(now_monotonic_s):
+            return
+        if not self.recording_started:
+            self.begin_recording(now_monotonic_s)
+            self.get_logger().info("FAST confirmed; FT recording started")
+        self.ft_callbacks += 1
         if not pair_valid:
             self.sync_rejections += 1
             return
@@ -264,7 +324,10 @@ class PhysicalFtCollector(Node):
         )
         self.last_recorded_source_sequence = state["source_sequence"]
 
-        if now_monotonic_s - self.episode_start_monotonic_s >= self.max_duration_s:
+        if (
+            now_monotonic_s - self.recording_start_monotonic_s
+            >= self.max_duration_s
+        ):
             path, accepted = self.finish_episode("max_duration")
             self.get_logger().info(
                 f"episode auto-saved: {path} accepted={accepted}"
@@ -296,6 +359,13 @@ class PhysicalFtCollector(Node):
         self.episode_start_utc = datetime.now(timezone.utc).isoformat()
         self.zero_snapshot = self.zero_verifier.summary()
         self.collecting = True
+        if not self.record_only_fast:
+            self.begin_recording(self.episode_start_monotonic_s)
+        if self.record_only_fast:
+            return True, (
+                "episode armed; CURRENT/SLOW are ignored and recording starts "
+                "after fresh FAST status"
+            )
         return True, (
             "episode started; move only in confirmed free space and call "
             "~/stop_episode before making contact"
@@ -309,6 +379,14 @@ class PhysicalFtCollector(Node):
         if not self.collecting:
             response.success = False
             response.message = "no active episode"
+            return response
+        if not self.rows["stamp_s"]:
+            self.collecting = False
+            self.reset_episode()
+            self.rate_gate.reset()
+            self.feature_builder.reset()
+            response.success = True
+            response.message = "episode cancelled before FAST; no file saved"
             return response
         path, accepted = self.finish_episode("service_stop")
         response.success = True
@@ -340,6 +418,7 @@ class PhysicalFtCollector(Node):
         metadata = {
             "schema_version": SCHEMA_VERSION,
             "created_utc": self.episode_start_utc,
+            "recording_started_utc": self.recording_start_utc,
             "stopped_utc": datetime.now(timezone.utc).isoformat(),
             "stop_reason": str(stop_reason),
             "accepted": accepted,
@@ -355,6 +434,12 @@ class PhysicalFtCollector(Node):
                 self.get_parameter("observer_input_topic").value
             ),
             "ft_topic": str(self.get_parameter("ft_topic").value),
+            "teleop_status_topic": str(
+                self.get_parameter("teleop_status_topic").value
+            ),
+            "record_only_teleop_state": (
+                "FAST" if self.record_only_fast else ""
+            ),
             "observer_input_frame": self.expected_observer_frame,
             "ft_frame": self.expected_ft_frame,
             "feature_contract": "q_rad[6],dq_rad_s[6],causal_qdd_rad_s2[6]",
@@ -413,10 +498,16 @@ class PhysicalFtCollector(Node):
         return target, accepted
 
     def publish_diagnostics(self):
+        recording = self.recording_started and self.fast_state_ready(
+            time.monotonic()
+        )
         message = String()
         message.data = json.dumps(
             {
                 "collecting": self.collecting,
+                "recording": recording,
+                "record_only_fast": self.record_only_fast,
+                "teleop_state": self.teleop_state,
                 "samples": len(self.rows["stamp_s"]),
                 "zero": self.zero_verifier.summary(),
                 "last_saved_path": self.last_saved_path,

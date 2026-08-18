@@ -24,6 +24,7 @@ def generate_launch_description():
             DeclareLaunchArgument("payload_id"),
             DeclareLaunchArgument("controller_config_hash"),
             DeclareLaunchArgument("auto_start", default_value="false"),
+            DeclareLaunchArgument("record_only_fast", default_value="false"),
             Node(
                 package="ft_fb_leaderarm",
                 executable="ft_free_space_collect",
@@ -42,6 +43,9 @@ def generate_launch_description():
                             "controller_config_hash"
                         ),
                         "auto_start": LaunchConfiguration("auto_start"),
+                        "record_only_fast": LaunchConfiguration(
+                            "record_only_fast"
+                        ),
                     },
                 ],
             ),

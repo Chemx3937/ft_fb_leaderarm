@@ -88,6 +88,22 @@ def test_free_space_gui_is_local_and_requires_collection_before_current(tmp_path
     assert is_collecting({"collecting": True})
     assert not is_collecting({"collecting": False})
     assert not is_collecting(None)
+    recording_helper = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_collector_is_recording"
+    )
+    recording_namespace = {}
+    exec(
+        compile(
+            ast.fix_missing_locations(
+                ast.Module(body=[recording_helper], type_ignores=[])),
+            str(path), "exec"),
+        recording_namespace,
+    )
+    is_recording = recording_namespace["_collector_is_recording"]
+    assert is_recording({"recording": True})
+    assert not is_recording({"recording": False})
     helpers = {
         node.name: node for node in tree.body
         if isinstance(node, ast.FunctionDef)
@@ -150,6 +166,8 @@ def test_free_space_gui_is_local_and_requires_collection_before_current(tmp_path
     assert 'executable="ft_free_space_collection_gui.py"' in launch
     assert 'parameters=[{"data_dir": LaunchConfiguration("output_dir")}]' in launch
     assert 'DeclareLaunchArgument("start_teleop", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("record_only_fast", default_value="true")' in launch
+    assert '"record_only_fast",' in launch
     assert 'condition=IfCondition(LaunchConfiguration("start_teleop"))' in launch
     assert 'executable="ft_fb_leader_single_impedance_teleop"' in launch
     assert '"feedback_source": "off"' in launch

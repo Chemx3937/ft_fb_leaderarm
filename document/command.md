@@ -351,18 +351,20 @@ ros2 service call /ft_free_space_collector/start_episode \
   std_srvs/srv/Trigger {}
 ```
 
-start 성공 후에만 운용자가 leader를 CURRENT로 전환한다. 전환 순간 leader pose가
-조금 달라져 follower가 움직이는 구간도 실제 free-space transient로 기록한다. 첫
-episode는 SLOW에서 20~30초 무접촉 동작만 수행하고 접촉 전에 중지한다. robot 또는
-leader를 움직이는 조작은 운용자만 실행한다.
+start 성공 후에만 운용자가 leader를 CURRENT로 전환한다. GUI 통합 launch는
+`record_only_fast:=true`가 기본이므로 start는 episode를 `ARMED`로만 만들고,
+CURRENT 전환과 SLOW 정렬 구간은 저장하지 않는다. 정렬 후 FAST로 전환하면 그때부터
+sample이 증가한다. FAST에서 무접촉 task 궤적을 수행하고 접촉 전에 중지한다. robot
+또는 leader를 움직이는 조작은 운용자만 실행한다.
 
 FT 전용 GUI의 `START FT EPISODE (1)`와 `STOP FT EPISODE (2)`는 각각 위의
 `/ft_free_space_collector/start_episode`, `stop_episode`를 호출한다. START 실패
 사유는 경고 팝업과 Problem Logs에 표시된다. START 성공 후 diagnostics에서
-`collecting=true`가 확인되어 FT Collector 배지가 `RECORDING`이 되기 전까지 GUI는
-CURRENT/SLOW/FAST 요청을 차단한다. 또한 Teleop 상태가 position 정렬 완료인 `IDLE`이
-아니면 START를 차단한다. 수집 중에는 Zero Gate 배지를 `LATCHED`로 표시하며, 이는
-zero pose를 벗어나도 이미 승인된 episode가 계속 기록된다는 뜻이다.
+`collecting=true`가 확인되어 FT Collector 배지가 `ARMED`가 되기 전까지 GUI는
+CURRENT/SLOW/FAST 요청을 차단한다. Teleop 상태가 position 정렬 완료인 `IDLE`이
+아니면 START를 차단한다. FAST가 확인되면 배지가 `RECORDING`으로 바뀐다. 수집 중에는
+Zero Gate 배지를 `LATCHED`로 표시하며, 이는 zero pose를 벗어나도 이미 승인된
+episode가 유지된다는 뜻이다.
 
 이 GUI는 복제 원본인 `fb_leaderarm` GUI를 import하거나 실행하지 않는다. 소스와
 launch, service 연결은 모두 `ft_fb_leaderarm` 내부에 있다.
