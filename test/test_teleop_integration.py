@@ -149,6 +149,11 @@ def test_free_space_gui_is_local_and_requires_collection_before_current(tmp_path
     assert 'package="ft_fb_leaderarm"' in launch
     assert 'executable="ft_free_space_collection_gui.py"' in launch
     assert 'parameters=[{"data_dir": LaunchConfiguration("output_dir")}]' in launch
+    assert 'DeclareLaunchArgument("start_teleop", default_value="false")' in launch
+    assert 'condition=IfCondition(LaunchConfiguration("start_teleop"))' in launch
+    assert 'executable="ft_fb_leader_single_impedance_teleop"' in launch
+    assert '"feedback_source": "off"' in launch
+    assert '"keyboard_input_enabled": False' in launch
     assert 'package="fb_leaderarm"' not in launch
 
 

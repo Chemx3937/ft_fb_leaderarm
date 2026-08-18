@@ -159,9 +159,10 @@ ros2 topic pub --once /aft_sensor2/sample_rate_setting \
 확인하고 직접 실행한다. GUI의 순서 guard를 terminal key로 우회하지 않도록 keyboard를
 비활성화한다.
 
-process가 시작되면 leader는 position mode에서 현재 follower 자세로 자동 `ALIGN`한
-뒤 `IDLE`이 된다. 이 startup `ALIGN`은 leader를 실제로 움직일 수 있지만 follower
-command는 발행하지 않는다.
+아래 8절의 통합 실행에서 `start_teleop:=true`를 사용할 때는 이 명령을 별도로
+실행하지 않는다. process가 시작되면 leader는 position mode에서 현재 follower
+자세로 자동 `ALIGN`한 뒤 `IDLE`이 된다. 이 startup `ALIGN`은 leader를 실제로
+움직일 수 있지만 follower command는 발행하지 않는다.
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -239,8 +240,14 @@ ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py \
   zero_set_confirmed:=true \
   zero_set_id:=tare_YYYYMMDD_01 \
   payload_id:="${FT_PAYLOAD_ID}" \
-  controller_config_hash:="${FT_CONTROLLER_HASH}"
+  controller_config_hash:="${FT_CONTROLLER_HASH}" \
+  start_teleop:=true
 ```
+
+`start_teleop:=true`는 feedback-OFF leader teleop도 함께 실행한다. GUI 창에 초점을
+둔 상태에서 `1/c/t/o/s/2` 키를 사용하며, teleop node 자체의 terminal keyboard는
+중복 입력을 막기 위해 비활성화된다. teleop을 이미 별도 terminal에서 실행했다면
+`start_teleop:=false`로 실행하여 node 중복을 피한다.
 
 GUI에서 다음 상태를 기다린다.
 

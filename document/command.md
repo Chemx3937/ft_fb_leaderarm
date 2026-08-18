@@ -284,12 +284,15 @@ ros2 launch ft_fb_leaderarm collect_free_space_gui.launch.py \
   zero_set_confirmed:=true \
   zero_set_id:=tare_YYYYMMDD_01 \
   payload_id:="${FT_PAYLOAD_ID}" \
-  controller_config_hash:="${FT_CONTROLLER_HASH}"
+  controller_config_hash:="${FT_CONTROLLER_HASH}" \
+  start_teleop:=true
 ```
 
-이 명령은 `ft_fb_leaderarm`가 자체 소유하는 collector와 FT 전용 GUI만 실행한다.
-teleop이나 robot/leader 이동은 자동 실행하지 않는다. GUI 없이 터미널만 사용할
-때는 launch 파일 이름만 `collect_free_space.launch.py`로 바꾼다.
+`start_teleop:=true`는 collector, FT 전용 GUI와 feedback-OFF teleop을 함께
+실행한다. GUI 창에서 `1/c/t/o/s/2` 키로 수집과 leader 상태를 제어한다. teleop을
+이미 별도 terminal에서 실행했다면 `start_teleop:=false`로 중복 실행을 피한다.
+GUI 없이 터미널만 사용할 때는 launch 파일 이름만
+`collect_free_space.launch.py`로 바꾼다.
 
 `YYYYMMDD`는 실제 날짜로 교체한다. launch 인자만 확인하려면 collector에
 `--ros-args --help`를 붙이지 말고 다음 명령을 사용한다.

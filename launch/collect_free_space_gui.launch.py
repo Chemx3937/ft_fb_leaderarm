@@ -1,4 +1,4 @@
-"""Launch the physical-FT collector with the ft_fb_leaderarm-owned GUI."""
+"""Launch the physical-FT collector GUI, optionally with feedback-OFF teleop."""
 
 import os
 from pathlib import Path
@@ -6,6 +6,7 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -29,6 +30,13 @@ def generate_launch_description():
         DeclareLaunchArgument("payload_id"),
         DeclareLaunchArgument("controller_config_hash"),
         DeclareLaunchArgument("auto_start", default_value="false"),
+        DeclareLaunchArgument("start_teleop", default_value="false"),
+        DeclareLaunchArgument(
+            "leader_config",
+            default_value=str(
+                share / "config/single_impedance_leader_damping.yaml"
+            ),
+        ),
     ]
     collector_arguments = {
         name: LaunchConfiguration(name)
@@ -43,6 +51,22 @@ def generate_launch_description():
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(str(collector_launch)),
                 launch_arguments=collector_arguments.items(),
+            ),
+            Node(
+                condition=IfCondition(LaunchConfiguration("start_teleop")),
+                package="ft_fb_leaderarm",
+                executable="ft_fb_leader_single_impedance_teleop",
+                name="leader_teleop_node",
+                output="screen",
+                emulate_tty=True,
+                parameters=[
+                    LaunchConfiguration("leader_config"),
+                    {
+                        "side": "right",
+                        "feedback_source": "off",
+                        "keyboard_input_enabled": False,
+                    },
+                ],
             ),
             Node(
                 package="ft_fb_leaderarm",
