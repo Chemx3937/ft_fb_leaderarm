@@ -37,8 +37,8 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 |---:|---|---|---|---|
 | 1 | 사용자 | 시작 자세, tool/payload/controller/frame과 수집 안전 조건 재확인 | FS-01 계약과 현재 장비 상태 일치 | 완료 |
 | 2 | 사용자 | FAST-only task 무접촉 episode 3개 수집 | 각 `accepted=true`, 접촉 0회 | 완료: `tare_02~04` |
-| 3 | 사용자 | 다양한 궤적 10개와 최소 7개 추가 독립 zero group 수집 | payload/controller/frame 혼합 없는 dataset | 대기 |
-| 4 | 검증 | 확대 dataset validator와 5개 ablation 재학습 | FS-02~04 report 통과, 승인 모델 생성 | pilot FS-02/04 PASS, FS-03 FAIL |
+| 3 | 사용자 | 다양한 궤적 10개와 최소 7개 추가 독립 zero group 수집 | payload/controller/frame 혼합 없는 dataset | 완료: 10 episodes/10 groups |
+| 4 | 검증 | 확대 dataset validator와 5개 ablation 재학습 | FS-02~04 report 통과, 승인 모델 생성 | final13 FS-02/04 PASS, FS-03 FAIL |
 | 5 | 사용자→검증 | observer-only FREE evidence 수집 | FS-05~06, CO-01~03 report 통과 | 대기 |
 | 6 | 사용자→검증 | ground truth 절차·CO-04 기준 확정 후 controlled contact 평가 | CO-04 report 통과 | 대기 |
 | 7 | 사용자→검증 | FB-02 기준 확정 후 feedback OFF→40%→100% 분석·승인 | FB-01, FB-02, FB-04 report 통과 | 대기 |
@@ -109,6 +109,8 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [ ] [ObserverInput-AFT 시간 정렬 체크리스트](FTsensor_check_list.md#observerinput-aft-시간-정렬-검증과-향후-개선) 측정과 개선 착수 조건 판정
 - [x] train/validation/test가 `zero_set_id` 단위로 분리됐는지 확인
 - [x] pilot dataset validation report 보존
+- [x] final13의 13개 NPZ/JSON CRC·metadata·배열 검증
+- [x] final13을 독립 zero group `7/3/3`으로 split하고 report 보존
 
 ## Phase 4: 학습·비교
 
@@ -120,8 +122,23 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] pilot validation 최대/p95/RMSE 비교
 - [x] pilot 선택 후 held-out test를 한 번만 평가
 - [ ] validation/test 최대 force-vector 오차 1 N 이하 확인: `4.295/2.733 N`
-- [x] inference p99 3.048 ms, max 3.810 ms 이하 확인: `0.0261/0.0489 ms`
+- [x] model-only inference p99/최악 약 `38,300/20,500 Hz`
+  (`0.0261/0.0489 ms`)
 - [ ] `metadata.json`의 `approved=true` 확인: pilot은 `false`
+- [x] final13의 5개 ablation 학습과 validation-only 모델 선택
+- [x] final13 선택 `dynamic_mlp`만 held-out test 1회 평가
+- [ ] final13 validation/test 최대 force-vector 오차 1 N 이하:
+  `3.980/6.260 N`
+- [x] final13 CPU model-only inference p99/최악 약 `41,900/32,400 Hz`
+  (`0.02388/0.03088 ms`)
+- [ ] final13 `metadata.approved=true`: `false`, runtime 승격 금지
+- [x] final13 residual을 task/diverse, offset, 정지/이동, 속도/가속도, global lag로 분리 분석
+- [x] validation-only causal acceleration smoothing과 짧은 history ablation 비교:
+  단일 모델 최선 max `3.947 N`, FAIL
+- [x] validation-only 단순 ensemble 비교: 최선 max `3.530 N`, FAIL
+- [x] train group `3/5/7` learning curve: max `11.168/4.703/3.980 N`
+- [ ] 누락된 동적 범위를 겨냥한 독립 zero-set train 6 groups 추가 수집
+- [ ] 방법 확정 후 새 독립 zero-set held-out test 3개 이상 수집
 
 ## Phase 5: Observer-only 실기 검증
 

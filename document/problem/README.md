@@ -39,6 +39,7 @@
 | [`FT-20260811-02`](FT-20260811-02.md) | 2026-08-11 | `OPS` | Phase 2 | CLI의 `off`가 Boolean으로 해석되어 teleop 시작 전 종료 | `CLOSED` |
 | [`FT-20260811-03`](FT-20260811-03.md) | 2026-08-11 | `OPS` | Phase 2 | teleop 시작 시 leader 자동 ALIGN 움직임이 안내에 불명확 | `CLOSED` |
 | [`FT-20260811-04`](FT-20260811-04.md) | 2026-08-11 | `DATA` | Phase 3 | 첫 정식 SLOW episode가 목표 20~30초 대신 74.757초 | `MITIGATED` |
+| [`FT-20260819-01`](FT-20260819-01.md) | 2026-08-19 | `MODEL` | Phase 4 | final13 선택 모델의 validation/test 최대 force-vector 오차가 1 N 초과 | `OPEN` |
 
 새 문제는 기존 행을 보존하고 `FT-YYYYMMDD-NN` 형식의 파일과 행으로 추가한다.
 
