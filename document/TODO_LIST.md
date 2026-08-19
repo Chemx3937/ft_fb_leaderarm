@@ -137,7 +137,8 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
   단일 모델 최선 max `3.947 N`, FAIL
 - [x] validation-only 단순 ensemble 비교: 최선 max `3.530 N`, FAIL
 - [x] train group `3/5/7` learning curve: max `11.168/4.703/3.980 N`
-- [ ] 누락된 동적 범위를 겨냥한 독립 zero-set train 6 groups 추가 수집
+- [ ] [재개 체크포인트](problem/FT-20260819-01.md#다음-session-재개-체크포인트)에
+  정의한 독립 zero-set targeted train 6 groups 추가 수집
 - [ ] 방법 확정 후 새 독립 zero-set held-out test 3개 이상 수집
 
 ## Phase 5: Observer-only 실기 검증

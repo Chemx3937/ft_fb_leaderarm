@@ -172,3 +172,7 @@ validation 방법을 고정한 뒤에는 다른 날짜·전원 cycle·독립 zer
   중요하다.
 - 다음 단계는 targeted train 6 groups 수집이다. 이는 robot 이동·zero-set·수집이
   필요한 hardware 단계이므로 사용자 승인과 새 session의 warm-up 확인 후 수행한다.
+
+다음 장비 session의 split 보호, episode별 역할과 재개 절차는
+[FT-20260819-01 재개 체크포인트](../problem/FT-20260819-01.md#다음-session-재개-체크포인트)를
+따른다.
