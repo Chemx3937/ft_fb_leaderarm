@@ -17,6 +17,14 @@ from .contract import (
 )
 
 
+PHYSICAL_RIDGE_ABLATION = "physical_residual_short_multiscale_ridge"
+PHYSICAL_RIDGE_CONTRACT = "physical_payload_gravity_plus_learned_residual"
+RUNTIME_ABLATIONS = {
+    **ABLATIONS,
+    PHYSICAL_RIDGE_ABLATION: ("short_multiscale", 32, (), "ridge"),
+}
+
+
 class WrenchRegressor(nn.Module):
     def __init__(self, input_dim, hidden_dims):
         super().__init__()
@@ -106,6 +114,73 @@ def save_bundle(model, metadata, output_dir):
     return model_path
 
 
+class PayloadGravityModel:
+    def __init__(self, metadata, zero_pose_deg):
+        import pinocchio as pin
+        from ament_index_python.packages import get_package_share_directory
+
+        package = str(metadata.get("urdf_package", "")).strip()
+        relative = str(metadata.get("urdf_relative_path", "")).strip()
+        relative_path = Path(relative)
+        package_root = Path(get_package_share_directory(package)).resolve()
+        urdf = package_root / relative_path
+        if (
+            not relative
+            or relative_path.is_absolute()
+            or ".." in relative_path.parts
+            or not urdf.is_file()
+            or file_sha256(urdf) != metadata.get("urdf_sha256")
+        ):
+            raise RuntimeError(
+                "payload gravity URDF is missing or differs from metadata"
+            )
+        self.pin = pin
+        self.model = pin.buildModelFromUrdf(str(urdf))
+        self.data = self.model.createData()
+        frame = str(metadata.get("frame", "")).strip()
+        self.frame_id = self.model.getFrameId(frame)
+        if self.frame_id >= len(self.model.frames):
+            raise RuntimeError(f"payload gravity frame is missing: {frame}")
+        joint_names = metadata.get("joint_names", [])
+        if len(joint_names) != 6:
+            raise RuntimeError("payload gravity requires six joint names")
+        joint_ids = [self.model.getJointId(str(name)) for name in joint_names]
+        if any(joint_id == 0 for joint_id in joint_ids):
+            raise RuntimeError("payload gravity joint is missing from URDF")
+        self.joint_indices = [
+            self.model.joints[joint_id].idx_q for joint_id in joint_ids
+        ]
+        self.q_full = pin.neutral(self.model)
+        self.mass_kg = float(metadata.get("mass_kg", 0.0))
+        self.com_sensor_m = np.asarray(
+            metadata.get("com_sensor_m", []), dtype=np.float64
+        )
+        zero_pose = np.deg2rad(np.asarray(zero_pose_deg, dtype=np.float64))
+        if (
+            not np.isfinite(self.mass_kg)
+            or self.mass_kg <= 0.0
+            or self.com_sensor_m.shape != (3,)
+            or not np.isfinite(self.com_sensor_m).all()
+            or zero_pose.shape != (6,)
+            or not np.isfinite(zero_pose).all()
+        ):
+            raise RuntimeError("payload gravity parameters are invalid")
+        self.gravity_at_zero = self._sensor_gravity(zero_pose)
+
+    def _sensor_gravity(self, q_rad):
+        self.q_full[self.joint_indices] = q_rad
+        self.pin.forwardKinematics(self.model, self.data, self.q_full)
+        self.pin.updateFramePlacements(self.model, self.data)
+        return self.data.oMf[self.frame_id].rotation.T @ self.model.gravity.linear
+
+    def predict(self, q_rad):
+        q = np.asarray(q_rad, dtype=np.float64)
+        if q.shape != (6,) or not np.isfinite(q).all():
+            raise ValueError("payload gravity q must contain six finite values")
+        force = self.mass_kg * (self._sensor_gravity(q) - self.gravity_at_zero)
+        return np.concatenate((force, np.cross(self.com_sensor_m, force)))
+
+
 class BundlePredictor:
     def __init__(self, model_path, require_approved=True):
         model_path = Path(model_path).expanduser().resolve()
@@ -129,11 +204,11 @@ class BundlePredictor:
         if not expected_hash or file_sha256(model_path) != expected_hash:
             raise RuntimeError("model SHA-256 does not match metadata")
         self.ablation = str(self.metadata.get("ablation", ""))
-        if self.ablation not in ABLATIONS:
+        if self.ablation not in RUNTIME_ABLATIONS:
             raise RuntimeError(f"unsupported model ablation: {self.ablation}")
-        expected_mode, expected_history, _, expected_architecture = ABLATIONS[
-            self.ablation
-        ]
+        expected_mode, expected_history, _, expected_architecture = (
+            RUNTIME_ABLATIONS[self.ablation]
+        )
         self.mode = str(self.metadata.get("feature_mode", ""))
         self.history = int(self.metadata.get("history", 0))
         self.architecture = str(self.metadata.get("architecture", ""))
@@ -146,6 +221,17 @@ class BundlePredictor:
                 "model ablation and feature/history/architecture metadata disagree"
             )
         self.model = torch.jit.load(str(model_path), map_location="cpu").eval()
+        prediction_contract = str(
+            self.metadata.get("prediction_contract", "")
+        ).strip()
+        self.gravity_model = None
+        if prediction_contract == PHYSICAL_RIDGE_CONTRACT:
+            self.gravity_model = PayloadGravityModel(
+                self.metadata.get("gravity_model", {}),
+                self.metadata.get("zero_pose_deg", []),
+            )
+        elif prediction_contract:
+            raise RuntimeError(f"unsupported prediction contract: {prediction_contract}")
 
     def predict(self, base_feature_window):
         window = np.asarray(base_feature_window, dtype=np.float32)
@@ -157,6 +243,10 @@ class BundlePredictor:
         with torch.inference_mode():
             result = self.model(torch.from_numpy(projected))
         output = result.detach().cpu().numpy().reshape(-1)
+        if self.gravity_model is not None:
+            output = output.astype(np.float64) + self.gravity_model.predict(
+                window[-1, :6]
+            )
         if output.shape != (6,) or not np.isfinite(output).all():
             raise RuntimeError("model produced a non-finite or malformed wrench")
         return output.astype(np.float64)

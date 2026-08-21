@@ -71,6 +71,8 @@ def test_ablation_projection_shapes():
     assert project_feature_windows(windows[:, -1:], "dynamic").shape == (5, 24)
     assert project_feature_windows(windows, "history").shape == (5, 16 * 24)
     assert project_feature_windows(windows, "sequence").shape == (5, 16, 24)
+    short = np.ones((5, 32, BASE_FEATURE_DIM), dtype=np.float32)
+    assert project_feature_windows(short, "short_multiscale").shape == (5, 54)
 
 
 def test_sensor_wrench_rotates_to_base_and_shifts_moment():

@@ -29,6 +29,7 @@
   <exec_depend>python3-pyqt5</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>fb_leaderarm</exec_depend>
+  <exec_depend>aidin_dsr_dualarm_description</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>

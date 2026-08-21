@@ -210,6 +210,20 @@ def project_feature_windows(windows, mode):
         return transformed.reshape(len(transformed), -1)
     if mode == "sequence":
         return transformed
+    if mode == "short_multiscale":
+        if array.shape[1] < 32:
+            raise ValueError("short_multiscale requires at least 32 samples")
+        q = array[:, -1, :6]
+        parts = [np.sin(q), np.cos(q), array[:, -1, 6:12]]
+        parts.extend(
+            np.mean(array[:, -width:, 6:12], axis=1)
+            for width in (8, 16, 32)
+        )
+        parts.extend(
+            np.mean(array[:, -width:, 12:18], axis=1)
+            for width in (8, 16, 32)
+        )
+        return np.concatenate(parts, axis=1)
     raise ValueError(f"unsupported feature mode: {mode}")
 
 

@@ -196,13 +196,26 @@ random Fourier 후보의 max는 반올림 전에도 최종 ridge와 약 `0.0004 
 32 samples, 약 `121.9 ms`는 causal history를 채우는 warm-up이고, 이후에는
 32 samples마다 한 번이 아니라 **매 sample마다** 예측한다.
 
-아직 최종 ridge의 runtime bundle과 predictor가 없으므로 다음 두 실측값은 없다.
+2026-08-22에 정확히 같은 54D 전처리, TorchScript ridge residual과 Pinocchio payload
+gravity를 포함하는 diagnostic bundle을 만들고 target PC에서 2,000회 측정했다.
 
-1. model-only latency: 정확히 같은 54D 전처리와 ridge 연산을 target PC에서 최소
-   2,000회 측정한다. `p99 <= 3.048 ms`, `max <= 3.810 ms`이면 `FS-04` PASS다.
-2. ROS 유효 publish rate: 같은 bundle을 observer에 연결한 뒤 아래 passive evaluator로
-   10초 측정한다. `valid_publish_hz >= 262.5`, deadline miss·invalid·stale가 모두
-   0이면 `FS-05` PASS다.
+| 항목 | 결과 | 기준 | 판정 |
+|---|---:|---:|---|
+| mean latency | `0.05463 ms` | 참고 | 약 `18,304 Hz` |
+| p99 latency | `0.08783 ms` | `<=3.04762 ms` | PASS |
+| max latency | `0.60003 ms` | `<=3.80952 ms` | PASS |
+
+- bundle/report:
+  `/home/vision/.ros/ft_fb_leaderarm/models/right_train13_ridge_short_multiscale_bundle_v3_20260822`
+- runtime/offline 전체 validation prediction 최대 차이: `0.000206 N`
+- runtime 경로 validation max/p95/RMSE: `2.162/1.135/0.666 N`
+- model-only `FS-04` timing gate: PASS
+- accuracy `FS-03`: FAIL이므로 metadata는 `approved=false`이고 observer는 이 bundle을
+  의도대로 거부한다.
+
+남은 실측은 ROS 유효 publish rate다. 정확도 gate를 통과해 bundle이 승인된 뒤 같은
+bundle을 observer에 연결하고 아래 passive evaluator로 10초 측정한다.
+`valid_publish_hz >= 262.5`, deadline miss·invalid·stale가 모두 0이면 `FS-05` PASS다.
 
 ```bash
 ros2 run ft_fb_leaderarm ft_observer_runtime_evaluate -- \
@@ -210,11 +223,10 @@ ros2 run ft_fb_leaderarm ft_observer_runtime_evaluate -- \
   --output /tmp/right_ridge_observer_runtime.json
 ```
 
-이 명령은 현재 상태에서 바로 실행하는 명령이 아니다. 먼저 선택 ridge를
-runtime-compatible bundle로 저장하고 observer predictor가 이를 읽도록 구현해야 한다.
-기존 MLP에서 측정한 약 `41,900 Hz`는 모델 구조가 다르므로 이 ridge의 실측값으로
-재사용하지 않는다. 단순 `ros2 topic hz`는 전체 publish 수만 보여 주며 valid prediction,
-deadline miss와 stale을 구분하지 못하므로 최종 판정에는 위 evaluator를 사용한다.
+이 명령은 현재 상태에서 실행하지 않는다. runtime-compatible predictor는 구현됐지만
+`max<=1 N`을 실패한 bundle의 승인 상태를 바꾸거나 observer 설정에 연결해서는 안 된다.
+단순 `ros2 topic hz`는 전체 publish 수만 보여 주며 valid prediction, deadline miss와
+stale을 구분하지 못하므로 최종 판정에는 위 evaluator를 사용한다.
 
 ## 최종 선택
 

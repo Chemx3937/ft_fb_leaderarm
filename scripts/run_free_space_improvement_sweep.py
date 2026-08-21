@@ -264,7 +264,31 @@ def ridge_candidate(train, validation, regularization):
     coefficients = np.linalg.solve(matrix, x.T @ y)
     prediction = ((validation_x - x_mean) / x_std) @ coefficients * y_std + y_mean
     metrics, by_group = metrics_from_prediction(validation, prediction)
-    return {"metrics": metrics, "by_group": by_group, "prediction": prediction}
+    return {
+        "metrics": metrics,
+        "by_group": by_group,
+        "prediction": prediction,
+        "coefficients": coefficients,
+        "x_mean": x_mean,
+        "x_std": x_std,
+        "y_mean": y_mean,
+        "y_std": y_std,
+    }
+
+
+def ridge_torch_model(result):
+    coefficients = np.asarray(result["coefficients"], dtype=np.float32)
+    core = WrenchRegressor(coefficients.shape[0], ())
+    with torch.no_grad():
+        core.layers[0].weight.copy_(torch.from_numpy(coefficients.T))
+        core.layers[0].bias.zero_()
+    return make_normalized_model(
+        core,
+        result["x_mean"],
+        result["x_std"],
+        result["y_mean"],
+        result["y_std"],
+    )
 
 
 def zero_affine_correct(splits):
