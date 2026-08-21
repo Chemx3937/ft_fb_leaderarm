@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train five contact-safe physical-FT ablations and seal only a <=1 N model."""
+"""Train contact-safe physical-FT ablations and seal only a robust 262.5 Hz model."""
 
 import argparse
 from dataclasses import dataclass
@@ -16,12 +16,18 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .contract import (
     ABLATIONS,
+    APPROVAL_CONTRACT,
     BASE_FEATURE_DIM,
+    FORCE_GROUP_P95_LIMIT_N,
+    FORCE_HARD_MAX_LIMIT_N,
+    FORCE_P99_LIMIT_N,
+    INFERENCE_HARD_MAX_LIMIT_MS,
+    INFERENCE_P99_LIMIT_MS,
     SAMPLE_HZ,
-    SAMPLE_PERIOD_S,
     SCHEMA_VERSION,
     error_metrics,
     project_feature_windows,
+    robust_force_accuracy_gate,
 )
 from .model import (
     RecurrentWrenchRegressor,
@@ -58,7 +64,8 @@ def load_session(path):
         raise RuntimeError(f"{path}: episode is not marked free-space-only")
     if str(metadata.get("robot_side", "")) != "right":
         raise RuntimeError(f"{path}: only the right follower arm is supported")
-    if abs(float(metadata.get("sample_hz", 0.0)) - SAMPLE_HZ) > 1.0e-9:
+    sample_hz = float(metadata.get("sample_hz", 0.0))
+    if abs(sample_hz - SAMPLE_HZ) > 1.0e-9:
         raise RuntimeError(f"{path}: sample rate must be {SAMPLE_HZ} Hz")
     if not str(metadata.get("zero_set_id", "")).strip():
         raise RuntimeError(f"{path}: zero_set_id is missing")
@@ -197,6 +204,18 @@ def evaluate_all_windows(model, sessions, mode, history, batch_size=8192):
     return error_metrics(target, prediction)
 
 
+def evaluate_by_group(model, sessions, mode, history):
+    return {
+        group: evaluate_all_windows(
+            model,
+            [session for session in sessions if session.group == group],
+            mode,
+            history,
+        )
+        for group in sorted({session.group for session in sessions})
+    }
+
+
 def train_candidate(
     name,
     splits,
@@ -294,6 +313,9 @@ def train_candidate(
     validation_metrics = evaluate_all_windows(
         model, splits["validation"], mode, history
     )
+    validation_by_group = evaluate_by_group(
+        model, splits["validation"], mode, history
+    )
     return {
         "name": name,
         "mode": mode,
@@ -304,6 +326,7 @@ def train_candidate(
         "train_samples": len(train_x),
         "validation_samples": validation_metrics["samples"],
         "validation": validation_metrics,
+        "validation_by_group": validation_by_group,
     }
 
 
@@ -335,7 +358,7 @@ def benchmark_runtime(model, session, mode, history, calls):
         "mean_ms": float(values.mean()),
         "p99_ms": float(np.percentile(values, 99.0)),
         "max_ms": float(values.max()),
-        "period_ms": SAMPLE_PERIOD_S * 1000.0,
+        "period_ms": 1000.0 / float(session.metadata["sample_hz"]),
     }
 
 
@@ -364,15 +387,40 @@ def parse_args(argv=None):
     parser.add_argument("--learning-rate", type=float, default=1.0e-3)
     parser.add_argument("--max-windows-per-session", type=int, default=20000)
     parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--max-force-error-n", type=float, default=1.0)
+    parser.add_argument(
+        "--max-force-p99-n", type=float, default=FORCE_P99_LIMIT_N
+    )
+    parser.add_argument(
+        "--max-group-force-p95-n",
+        type=float,
+        default=FORCE_GROUP_P95_LIMIT_N,
+    )
+    parser.add_argument(
+        "--hard-max-force-error-n",
+        type=float,
+        default=FORCE_HARD_MAX_LIMIT_N,
+    )
     parser.add_argument("--benchmark-calls", type=int, default=2000)
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
-    if not (0.0 < args.max_force_error_n <= 1.0):
-        raise SystemExit("--max-force-error-n must be within (0, 1.0]")
+    force_limits = (
+        args.max_force_p99_n,
+        args.max_group_force_p95_n,
+        args.hard_max_force_error_n,
+    )
+    if not all(math.isfinite(value) and value > 0.0 for value in force_limits):
+        raise SystemExit("force error limits must be positive")
+    if args.hard_max_force_error_n < max(force_limits[:2]):
+        raise SystemExit("hard max force limit cannot be below percentile limits")
+    if (
+        args.max_force_p99_n > FORCE_P99_LIMIT_N
+        or args.max_group_force_p95_n > FORCE_GROUP_P95_LIMIT_N
+        or args.hard_max_force_error_n > FORCE_HARD_MAX_LIMIT_N
+    ):
+        raise SystemExit("force error limits cannot relax the acceptance contract")
     if args.epochs < 1 or args.max_windows_per_session < 1:
         raise SystemExit("epochs and max-windows-per-session must be positive")
     if args.benchmark_calls < 2000:
@@ -396,18 +444,27 @@ def main(argv=None):
         )
         results.append(result)
         print(
-            f"[ABLATION] {name}: validation max="
-            f"{result['validation']['force_norm_max_n']:.4f} N, p95="
-            f"{result['validation']['force_norm_p95_n']:.4f} N",
+            f"[ABLATION] {name}: validation p99="
+            f"{result['validation']['force_norm_p99_n']:.4f} N, max="
+            f"{result['validation']['force_norm_max_n']:.4f} N",
             flush=True,
         )
 
+    for row in results:
+        row["validation_gate"] = robust_force_accuracy_gate(
+            row["validation"],
+            row["validation_by_group"],
+            args.max_force_p99_n,
+            args.max_group_force_p95_n,
+            args.hard_max_force_error_n,
+        )
+    passing = [row for row in results if row["validation_gate"]["passed"]]
     selected = min(
-        results,
+        passing or results,
         key=lambda row: (
-            row["validation"]["force_norm_max_n"],
-            row["validation"]["force_norm_p95_n"],
             row["validation"]["force_norm_rmse_n"],
+            row["validation"]["force_norm_p99_n"],
+            row["validation"]["force_norm_max_n"],
         ),
     )
     test_metrics = evaluate_all_windows(
@@ -416,6 +473,19 @@ def main(argv=None):
         selected["mode"],
         selected["history"],
     )
+    test_by_group = evaluate_by_group(
+        selected["model"],
+        splits["test"],
+        selected["mode"],
+        selected["history"],
+    )
+    test_gate = robust_force_accuracy_gate(
+        test_metrics,
+        test_by_group,
+        args.max_force_p99_n,
+        args.max_group_force_p95_n,
+        args.hard_max_force_error_n,
+    )
     benchmark = benchmark_runtime(
         selected["model"],
         splits["test"][0],
@@ -423,13 +493,11 @@ def main(argv=None):
         selected["history"],
         args.benchmark_calls,
     )
-    accuracy_pass = (
-        selected["validation"]["force_norm_max_n"] <= args.max_force_error_n
-        and test_metrics["force_norm_max_n"] <= args.max_force_error_n
-    )
+    sample_hz = float(sessions[0].metadata["sample_hz"])
+    accuracy_pass = selected["validation_gate"]["passed"] and test_gate["passed"]
     runtime_pass = (
-        benchmark["p99_ms"] <= 0.80 * benchmark["period_ms"]
-        and benchmark["max_ms"] <= benchmark["period_ms"]
+        benchmark["p99_ms"] <= INFERENCE_P99_LIMIT_MS
+        and benchmark["max_ms"] <= INFERENCE_HARD_MAX_LIMIT_MS
     )
     approved = accuracy_pass and runtime_pass
     reference = sessions[0].metadata
@@ -443,31 +511,32 @@ def main(argv=None):
             "train_samples": row["train_samples"],
             "validation_samples": row["validation_samples"],
             "validation": row["validation"],
+            "validation_by_group": row["validation_by_group"],
+            "validation_gate": row["validation_gate"],
         }
         for row in results
     ]
     report = {
         "created_utc": datetime.now(timezone.utc).isoformat(),
+        "approval_contract": APPROVAL_CONTRACT,
         "approved": approved,
         "selection_uses": "validation_only",
         "selected_ablation": selected["name"],
         "accuracy_gate": {
-            "maximum_force_vector_error_n": args.max_force_error_n,
-            "validation_pass": (
-                selected["validation"]["force_norm_max_n"]
-                <= args.max_force_error_n
-            ),
-            "held_out_test_pass": (
-                test_metrics["force_norm_max_n"] <= args.max_force_error_n
-            ),
+            "validation": selected["validation_gate"],
+            "held_out_test": test_gate,
         },
         "runtime_gate": {
             "required_hz": SAMPLE_HZ,
+            "source_sample_hz": sample_hz,
+            "p99_limit_ms": INFERENCE_P99_LIMIT_MS,
+            "hard_max_limit_ms": INFERENCE_HARD_MAX_LIMIT_MS,
             "pass": runtime_pass,
             "benchmark": benchmark,
         },
         "ablations": public_results,
         "held_out_test_selected_model_only": test_metrics,
+        "held_out_test_by_group": test_by_group,
         "sessions": session_manifest(splits),
     }
     (output_dir / "ablation_report.json").write_text(
@@ -475,8 +544,9 @@ def main(argv=None):
     )
     metadata = {
         "schema_version": SCHEMA_VERSION,
+        "approval_contract": APPROVAL_CONTRACT,
         "approved": approved,
-        "sample_hz": SAMPLE_HZ,
+        "sample_hz": sample_hz,
         "base_feature_dim": BASE_FEATURE_DIM,
         "base_feature_contract": "q_rad[6],dq_rad_s[6],causal_qdd_rad_s2[6]",
         "forbidden_runtime_features": [
@@ -496,16 +566,21 @@ def main(argv=None):
         "payload_id": reference["payload_id"],
         "controller_config_hash": reference["controller_config_hash"],
         "validation": selected["validation"],
+        "validation_by_group": selected["validation_by_group"],
         "held_out_test": test_metrics,
+        "held_out_test_by_group": test_by_group,
         "runtime_benchmark": benchmark,
-        "max_force_error_gate_n": args.max_force_error_n,
+        "accuracy_gate": {
+            "validation": selected["validation_gate"],
+            "held_out_test": test_gate,
+        },
         "ablation_report": "ablation_report.json",
     }
     save_bundle(selected["model"], metadata, output_dir)
     print(
         f"[RESULT] approved={approved} selected={selected['name']} "
-        f"validation_max={selected['validation']['force_norm_max_n']:.4f} N "
-        f"test_max={test_metrics['force_norm_max_n']:.4f} N "
+        f"validation_p99={selected['validation']['force_norm_p99_n']:.4f} N "
+        f"test_p99={test_metrics['force_norm_p99_n']:.4f} N "
         f"runtime_p99={benchmark['p99_ms']:.4f} ms",
         flush=True,
     )

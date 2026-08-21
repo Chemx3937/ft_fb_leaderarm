@@ -99,6 +99,9 @@ class PhysicalFtContactObserver(Node):
 
         torch.set_num_threads(1)
         self.predictor = BundlePredictor(model_path, require_approved=True)
+        self.sample_hz = sample_hz
+        if abs(self.predictor.sample_hz - self.sample_hz) > 1.0e-9:
+            raise RuntimeError("observer and model sample_hz contracts differ")
         self.expected_observer_frame = str(
             self.get_parameter("observer_input_frame").value
         )
@@ -226,11 +229,11 @@ class PhysicalFtContactObserver(Node):
         self.diagnostics_publisher = self.create_publisher(
             String, str(self.get_parameter("diagnostics_topic").value), 10
         )
-        self.create_timer(1.0 / SAMPLE_HZ, self.inference_callback)
+        self.create_timer(1.0 / self.sample_hz, self.inference_callback)
         self.create_timer(1.0, self.publish_diagnostics)
         self.get_logger().info(
             f"approved model={model_path}, ablation={self.predictor.ablation}, "
-            f"history={self.predictor.history}, output={SAMPLE_HZ:.1f} Hz, "
+            f"history={self.predictor.history}, output={self.sample_hz:.1f} Hz, "
             f"prewarm_p99={self.prewarm_benchmark['p99_ms']:.3f} ms"
         )
 
@@ -255,10 +258,10 @@ class PhysicalFtContactObserver(Node):
             "p99_ms": float(np.percentile(values, 99.0)),
             "max_ms": float(np.max(values)),
         }
-        period_ms = 1000.0 / SAMPLE_HZ
+        period_ms = 1000.0 / self.sample_hz
         if result["p99_ms"] > 0.80 * period_ms or result["max_ms"] > period_ms:
             raise RuntimeError(
-                "runtime prewarm failed the 262.5 Hz deadline: "
+                f"runtime prewarm failed the {self.sample_hz:.1f} Hz deadline: "
                 f"p99={result['p99_ms']:.3f} ms, "
                 f"max={result['max_ms']:.3f} ms, period={period_ms:.3f} ms"
             )
@@ -408,7 +411,7 @@ class PhysicalFtContactObserver(Node):
         self.max_inference_ms = max(
             self.max_inference_ms, self.last_inference_ms
         )
-        if self.last_inference_ms > 1000.0 / SAMPLE_HZ:
+        if self.last_inference_ms > 1000.0 / self.sample_hz:
             self.deadline_misses += 1
 
         force_norm_n = float(np.linalg.norm(residual_sensor[:3]))
@@ -442,7 +445,7 @@ class PhysicalFtContactObserver(Node):
         )
         self.valid_predictions += 1
         callback_ms = (time.perf_counter_ns() - callback_start_ns) * 1.0e-6
-        if callback_ms > 1000.0 / SAMPLE_HZ:
+        if callback_ms > 1000.0 / self.sample_hz:
             self.deadline_misses += 1
 
     def publish_invalid(self, now_message, reason):
@@ -496,7 +499,7 @@ class PhysicalFtContactObserver(Node):
                 ),
                 "residual_bias_calibration_enabled": False,
                 "residual_bias_ready": True,
-                "sample_hz": SAMPLE_HZ,
+                "sample_hz": self.sample_hz,
                 "uptime_s": time.monotonic() - self.start_monotonic_s,
                 "model_sha256": self.predictor.metadata["model_sha256"],
                 "zero_set_id": str(self.get_parameter("zero_set_id").value),

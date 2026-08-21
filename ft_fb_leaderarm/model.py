@@ -10,6 +10,7 @@ from torch import nn
 
 from .contract import (
     ABLATIONS,
+    APPROVAL_CONTRACT,
     BASE_FEATURE_DIM,
     SAMPLE_HZ,
     SCHEMA_VERSION,
@@ -194,12 +195,15 @@ class BundlePredictor:
         self.metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if int(self.metadata.get("schema_version", -1)) != SCHEMA_VERSION:
             raise RuntimeError("unsupported model schema")
-        if abs(float(self.metadata.get("sample_hz", 0.0)) - SAMPLE_HZ) > 1.0e-9:
+        self.sample_hz = float(self.metadata.get("sample_hz", 0.0))
+        if abs(self.sample_hz - SAMPLE_HZ) > 1.0e-9:
             raise RuntimeError(f"model sample_hz must be {SAMPLE_HZ}")
         if int(self.metadata.get("base_feature_dim", -1)) != BASE_FEATURE_DIM:
             raise RuntimeError("model base feature contract is invalid")
         if require_approved and not bool(self.metadata.get("approved", False)):
-            raise RuntimeError("model is rejected; the 1 N/runtime gates did not pass")
+            raise RuntimeError("model is rejected; accuracy/runtime gates did not pass")
+        if require_approved and self.metadata.get("approval_contract") != APPROVAL_CONTRACT:
+            raise RuntimeError("model approval contract is missing or obsolete")
         expected_hash = str(self.metadata.get("model_sha256", ""))
         if not expected_hash or file_sha256(model_path) != expected_hash:
             raise RuntimeError("model SHA-256 does not match metadata")

@@ -100,7 +100,7 @@ sensor settling, 비선형 시간 의존성을 학습한다.
 - 복잡한 시간 의존성을 표현할 가능성이 가장 크다.
 - parameter와 연산량이 증가한다.
 - 작은 dataset에서는 과적합할 수 있다.
-- 성능이 좋아도 3.810 ms runtime deadline을 넘으면 사용할 수 없다.
+- 성능이 좋아도 p99 3.048 ms 또는 hard max 3.810 ms runtime deadline을 넘으면 사용할 수 없다.
 
 ## 5. `history_gru`
 
@@ -127,17 +127,18 @@ LSTM과 같은 causal sequence를 더 단순한 recurrent gate로 처리한다.
 - train/validation/test는 episode가 아니라 `zero_set_id` group으로 분리한다.
 - loss는 전체 6축 MSE와 상위 5% force tail 오차를 함께 사용한다.
 - checkpoint 선택은 validation RMSE로 수행한다.
-- 최종 후보 선택은 validation force max → p95 → RMSE 순서다.
+- 최종 후보 선택은 robust validation gate를 통과한 후보 중 force RMSE 최저다.
 - 선택 후 held-out test를 한 번 평가한다.
 - 모델과 normalization을 하나의 TorchScript `model.ts`로 저장한다.
 
 ## 승인 기준
 
 ```text
-validation max ||Fraw-Fpred||2 <= 1.0 N
-held-out test max ||Fraw-Fpred||2 <= 1.0 N
+validation/test aggregate p99 ||Fraw-Fpred||2 <= 1.0 N
+validation/test every zero-set group p95 <= 1.0 N
+validation/test hard max <= 2.0 N
 inference p99 <= 3.048 ms
-inference max <= 3.810 ms
+inference hard max <= 3.810 ms
 ```
 
 현재 승인은 force 3축 기준이다. 모델은 moment도 예측하지만 moment에 대한

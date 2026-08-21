@@ -34,7 +34,7 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
 | 언제 | 오른팔 follower가 고정 초기 자세에 있고 AFT가 무접촉 zero-set된 뒤 |
 | 어디서 | `/contact_state/observer_input`, `/aft_sensor2/wrench`, `/contact_observer/right/observation` |
 | 무엇을 | `[q,dq,causal-qdd]`와 물리 FT `[Fx,Fy,Fz,Mx,My,Mz]` |
-| 어떻게 | 독립 zero-set group 분할, 5개 ablation, held-out 최대 force-vector 오차 gate |
+| 어떻게 | 독립 zero-set group 분할, validation robust force gate, 선택 모델의 새 held-out 평가 |
 | 왜 | 기존 JTS `external_tcp_force` target에 있던 관측 불가능한 1 N 이상 drift를 물리 FT 직접 계측으로 분리하기 위해 |
 
 ```text
@@ -50,22 +50,24 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
           기존 leader/IL recorder               분석/모니터링         분석/모니터링
 ```
 
-## 1 N의 정확한 의미
+## Force 정확도의 의미
 
-승인 기준은 force 각 축의 오차를 따로 보는 느슨한 기준이 아니라 다음의
-force-vector 최대 오차다.
+승인 기준은 force 각 축을 따로 보지 않고 force-vector error의 분포와 peak를 함께
+본다.
 
 ```text
-max_t ||F_raw(t) - F_prediction(t)||_2 <= 1.0 N
+aggregate p99 <= 1.0 N
+every zero_set_id group p95 <= 1.0 N
+hard max <= 2.0 N
 ```
 
 모델 선택에는 validation만 사용하고, 선택이 끝난 뒤 독립
-`zero_set_id` held-out test를 한 번 평가한다. validation 또는 test가 1 N을
-넘거나, CPU 추론이 262.5 Hz의 3.81 ms deadline을 통과하지 못하면
+`zero_set_id` held-out test를 한 번 평가한다. validation 또는 test가 위 gate를
+넘거나, CPU 추론이 262.5 Hz의 p99 3.048 ms/hard max 3.810 ms deadline을 통과하지 못하면
 `metadata.json`에 `approved: false`가 기록되고 runtime은 그 모델을
 로드하지 않는다.
 
-코드만으로 실제 장비의 1 N 성능을 미리 보장할 수는 없다. 데이터 취득과
+코드만으로 실제 장비의 정확도를 미리 보장할 수는 없다. 262.5 Hz 데이터 취득과
 held-out 결과가 gate를 통과해야 보장이 성립한다.
 
 ## 빌드

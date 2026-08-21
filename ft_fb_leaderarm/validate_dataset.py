@@ -14,6 +14,7 @@ from .train_ablation import load_sessions, session_manifest, split_by_zero_set
 
 def validate_dataset(data_dir, seed=7):
     sessions = load_sessions(data_dir)
+    sample_hz = float(sessions[0].metadata["sample_hz"])
     splits = split_by_zero_set(sessions, seed)
     force = np.concatenate([session.wrench[:, :3] for session in sessions], axis=0)
     groups = sorted({session.group for session in sessions})
@@ -27,6 +28,7 @@ def validate_dataset(data_dir, seed=7):
         "zero_set_group_count": len(groups),
         "zero_set_ids": groups,
         "sample_count": sum(len(session.features) for session in sessions),
+        "sample_hz": sample_hz,
         "duration_s": sum(float(session.metadata["duration_s"]) for session in sessions),
         "raw_force_norm_max_n": float(np.max(np.linalg.norm(force, axis=1))),
         "contracts": {

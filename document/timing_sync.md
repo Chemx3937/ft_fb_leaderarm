@@ -25,7 +25,7 @@
 | SBC SSH | `vision@192.168.112.17` |
 | ROS domain | `ROS_DOMAIN_ID=7` |
 | ObserverInput | `/contact_state/observer_input`, 약 1,000 Hz |
-| 물리 FT | `/aft_sensor2/wrench`, 약 1,000 Hz publish; collector/runtime 262.5 Hz |
+| 물리 FT | `/aft_sensor2/wrench`, 약 1,000 Hz publish·약 500 Hz 새 측정; collector/runtime 262.5 Hz |
 
 주소나 interface가 바뀌면 이 문서의 명령과 Chrony helper 기본값을 함께 검토한다.
 

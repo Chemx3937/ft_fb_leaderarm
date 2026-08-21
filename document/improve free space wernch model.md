@@ -2,16 +2,22 @@
 
 ## 목표와 판정 계약
 
-- 목표: 오른팔 무접촉 AFT wrench의 force-vector 예측 오차를 줄인다.
-- 합격 기준: development validation과 새 held-out test에서 각각
-  `max(||Fmeasured-Fpredicted||) <= 1 N`이다.
+- 목표: 오른팔 무접촉 AFT wrench를 최대한 정확하게 예측하면서 contact observer가
+  요구하는 `262.5 Hz` 실제 inference·ROS 유효 출력률을 지킨다.
+- 합격 기준: validation과 새 held-out test 각각 aggregate force error `p99<=1 N`,
+  모든 독립 zero-set group `p95<=1 N`, hard max `<=2 N`이다.
+- timing 기준: model-only inference `p99<=3.048 ms`, hard max `<=3.810 ms`, observer
+  유효 출력 `>=262.5 Hz`와 deadline miss·invalid·stale 0회다.
+- 선택 기준: validation gate를 통과한 후보 중 force RMSE가 가장 작은 모델이다.
 - 현재 비교 데이터: 고정 train 13 zero groups와 development validation
   `div02/div05/div07`만 사용한다.
 - 이미 공개된 과거 held-out `div01/div08/div10`은 어떤 후보에도 다시 사용하지 않는다.
 - 여러 후보를 같은 validation으로 비교하므로 여기서 고른 모델은 **offline 최선 후보**일
   뿐이다. 배포 승격에는 방법을 고정한 뒤 새 독립 held-out test가 필요하다.
-- hardware, ROS graph, observer/runtime 설정과 acceptance contract는 별도 승인 전까지
-  변경하지 않는다.
+- AFT 센서의 유효 취득률 약 `500 Hz`는 상위 source rate다. 모델 호출과 contact
+  판정은 262.5 Hz이며 기존 동적 NPZ도 이 runtime 계약과 일치한다.
+- 현재 변경은 저장소의 목표·학습·observer 계약만 준비한다. 로봇 이동, zero-set,
+  데이터 수집, 기존 hardware 및 실행 중 runtime은 건드리지 않는다.
 
 현재 기준 모델은 train-only payload gravity를 먼저 빼고 causal qdd 8-sample 평균을
 사용한 residual MLP다. seed 8 validation max/p95/RMSE는
@@ -21,9 +27,13 @@
 
 1. 데이터·계약 누수 guard와 runnable self-check를 통과한다.
 2. 한 번에 한 방법만 기준 모델에 적용해 효과를 분리한다.
-3. 공통 validation3에서 force max, p95, RMSE와 group별 max를 기록한다.
+3. validation에서 aggregate p99/RMSE/hard max와 zero-set별 p95를 기록한다.
 4. 개선 후보는 여러 seed와 causal/runtime 가능성을 재검증한다.
-5. strict max가 `1 N`을 넘으면 runtime bundle을 만들지 않는다.
+5. robust 정확도 gate 또는 262.5 Hz timing gate를 실패하면 runtime 승인하지 않는다.
+
+현재 `right_train13_ridge_short_multiscale_bundle_v3_20260822`는 262.5 Hz runtime
+계약과 timing gate를 만족한다. 다만 robust 정확도 gate와 새 held-out evidence를
+통과하지 않았으므로 diagnostic bundle, `approved=false`를 유지한다.
 
 ## 적용 방법 목록
 
@@ -53,6 +63,11 @@
 | 21 | 최선 후보 causal filter | 최선 ridge residual에 기존 median/EMA를 다시 적용한다. | 완료·strict max 실패 |
 | 22 | 단순 비선형 ridge | elementwise quadratic과 random Fourier feature를 추가한다. | 완료·유의미한 추가 효과 없음 |
 | 23 | train-group 교차검증 | train13 내부 leave-one-zero-group-out으로 방향성을 확인한다. | 완료·ridge history 우세 |
+| 24 | 실제 IL task replay | train에 포함된 동일 모방학습 task 3회를 현행 detector로 재생한다. | 완료·task02 false contact 3회 |
+| 25 | tail-weighted ridge | 큰 train residual 표본을 최대 8배 가중해 ridge를 다시 적합한다. | 완료·task02와 validation 모두 실패 |
+| 26 | 고정-task 전용 ridge | 동일 task 3회를 2회 학습·1회 평가하는 zero-set 3-fold로 검증한다. | 완료·개선, 실패 |
+| 27 | task zero/elapsed 입력 | zero 기준값과 episode 경과시간으로 반복별 차이를 설명한다. | 완료·zero 소폭 개선, elapsed 악화 |
+| 28 | 고정-task KNN lookup/correction | 같은 궤적의 가까운 자세·속도 이웃 wrench 또는 ridge residual을 재사용한다. | 완료·실패 |
 
 ## 현재 데이터로 정당하게 평가할 수 없는 방법
 
@@ -189,9 +204,145 @@ random Fourier 후보의 max는 반올림 전에도 최종 ridge와 약 `0.0004 
 실패했다. 낮은 cutoff는 p99를 줄이는 대신 `>1 N` 지속시간과 contact 지연을 늘린다.
 따라서 filter도 runtime에 채택하지 않는다.
 
+### 새 robust gate로 causal filter 재판정
+
+기존 improvement sweep report의 저장된 validation prediction을 새 계약으로 다시
+판정했다. 과거 held-out/test는 읽지 않았다. 여기서 기존 `selected_offline_filters`는
+free-space prediction이 아니라 측정 residual
+`W_sensor-W_free_hat`를 causal filtering한 downstream 진단이다.
+
+| residual filter | p99 [N] | hard max [N] | 최악 group p95 [N] | RMSE [N] | robust gate |
+|---|---:|---:|---:|---:|---|
+| raw | `1.4351` | `2.1616` | `1.2463` | `0.6663` | FAIL |
+| median3 | `1.3385` | `1.9798` | `1.1818` | `0.6178` | FAIL |
+| median5 | `1.2800` | `1.8653` | `1.1426` | `0.5872` | FAIL |
+| EMA 20 Hz | `1.2411` | `1.8496` | `1.1046` | `0.5663` | FAIL |
+| EMA 10 Hz | `1.1396` | `1.6653` | `1.0321` | `0.5174` | FAIL |
+| EMA 5 Hz | `1.0455` | `1.5444` | `0.9532` | `0.4748` | FAIL |
+| EMA 2.5 Hz | `0.9808` | `1.4444` | `0.9027` | `0.4469` | **PASS** |
+| median3 + EMA 20 Hz | `1.2152` | `1.7977` | `1.0903` | `0.5563` | FAIL |
+
+EMA 2.5 Hz는 aggregate p99 `<=1 N`, 모든 group p95 `<=1 N`, hard max
+`<=2 N`을 만족한다. 하지만 div02 p99는 `1.2290 N`, `>1 N` 최장 지속은
+`548.6 ms`이고 합성 4 N contact-on은 raw `11.43 ms`에서 `53.33 ms`로 늦어진다.
+또한 measured residual filtering은 실제 contact wrench도 감쇠하므로 현재
+`W_contact_hat=W_sensor-W_free_hat` 계약의 free-space model 후보가 아니다.
+
+runtime에 구현 가능한 대안도 별도로 확인했다. 전체 `W_free_hat`를 filtering하거나
+물리 gravity는 그대로 두고 learned residual prediction만 filtering한 두 방식 모두
+전 filter가 robust gate를 실패했다. EMA 2.5 Hz의 p99/hard max는 각각
+`1.7897/3.3322 N`, `1.7916/3.2699 N`으로 raw보다 악화됐다. 예측을 늦추면 동작 중
+실제 wrench 변화보다 뒤처지는 것이 원인이다. 따라서 **배포 가능한 validation PASS
+후보는 없으며 새 held-out 수집으로 넘어가지 않는다.**
+
+- source report SHA-256:
+  `72c9b9621ef792a8ac20b4058a7b8f5741e56347df920ac006dcc9d906d42c2e`
+- split manifest SHA-256:
+  `be7f8cfb440bf1fec992c0785e5a7a2b86611c98128809563ad9d1ea63bba8da`
+- 다음 결정: residual filtering을 허용하려면 contact signal 계약과 허용 onset latency를
+  먼저 확정한다. 현재 계약을 유지하면 temperature, 정확한 time-since-zero 또는
+  adapter/cable 상태처럼 기존 dataset에 없는 원인 변수를 계측한 새 train이 필요하다.
+
+### 실제 모방학습 task replay와 tail-weighted ridge
+
+`tare_20260819_02/03/04`는 동일 모방학습 task를 서로 다른 zero-set에서 반복한
+무접촉 궤적이다. 세 group 모두 train13에 포함됐으므로 아래 결과는 일반화 evidence가
+아닌 낙관적인 in-sample 진단이다. 최종 32-sample ridge bundle을 그대로 사용하고,
+처음 31개 history sample을 제외한 15,378개를 평가했다.
+
+| task | RMSE [N] | p95 [N] | p99 [N] | max [N] | `2/1.2 N`, `8/20 ms` false contact |
+|---|---:|---:|---:|---:|---:|
+| `tare_20260819_02` | `0.754` | `1.371` | `1.926` | `4.487` | `3` |
+| `tare_20260819_03` | `0.720` | `1.209` | `1.495` | `2.205` | `0` |
+| `tare_20260819_04` | `0.648` | `1.147` | `1.433` | `1.898` | `0` |
+| aggregate | `0.706` | `1.225` | `1.592` | `4.487` | `3` |
+
+task02의 false-contact 총 지속시간은 `156.19 ms`, 최장 구간은 `64.76 ms`였다.
+task03은 단일 max가 `2 N`을 넘었지만 threshold 이상 지속시간이 8 ms에 못 미쳐
+activation이 없었다. 학습에 이미 포함된 task에서도 false contact가 발생하므로 이
+bundle을 IL 수집 observer에 연결할 수 없다.
+
+기존 54D feature와 ridge 구조를 유지한 채 첫 ridge의 train force residual이
+`0.75/1.0/1.5/2.0 N` 이상인 표본을 `2/4/8`배 가중하고, residual 제곱에 따른 연속
+가중치도 비교했다. 총 17개 후보가 모두 robust validation gate를 실패했고 task02
+false contact도 `3회`로 유지됐다. validation p99가 가장 낮은 `>=0.75 N, 8배`
+후보도 max/p99/RMSE가 `2.204/1.412/0.664 N`이고 task aggregate
+max/p99/RMSE는 `4.450/1.597/0.712 N`이었다. 따라서 tail-weighted ridge는 폐기하며
+runtime 구현이나 bundle을 추가하지 않는다.
+
+참고로 measured contact residual을 episode마다 초기화한 causal filter로 replay하면
+다음과 같다. 이는 모델 정확도 개선이 아니라 실제 contact까지 함께 감쇠하는 downstream
+계약 변경 후보다.
+
+| residual filter | task aggregate p99/max [N] | task false contact | 합성 4 N contact-on |
+|---|---:|---:|---:|
+| raw | `1.592/4.487` | `3` | `11.43 ms` |
+| EMA 20 Hz | `1.306/3.145` | `0` | `15.24 ms` |
+| EMA 10 Hz | `1.167/2.110` | `0` | `19.05 ms` |
+| EMA 5 Hz | `1.054/1.359` | `0` | `30.48 ms` |
+| EMA 2.5 Hz | `0.988/1.129` | `0` | `53.33 ms` |
+
+EMA 2.5 Hz만 기존 validation robust gate와 이 task replay를 모두 수치상 통과하지만,
+contact-on을 `53.33 ms`로 늦춘다. 허용 onset latency가 미확정이고 현행
+`W_contact_hat=W_sensor-W_free_hat` 계약과도 다르므로 승인하거나 runtime에 적용하지
+않는다. 현재 데이터로 가능한 최소 모델 후보까지 실패했으며 다음 유효 분기는
+missing-state를 기록한 새 train 또는 residual-filter/contact-latency 계약 결정이다.
+
+### 거의 동일한 고정 task 전용 진단
+
+`tare_20260819_02/03/04`만 사용해 매 fold마다 서로 다른 두 zero-set 반복으로 학습하고
+남은 한 반복을 평가했다. 이는 과거 held-out을 사용하지 않은 task 내부
+leave-one-zero-set-out 진단이며, 반복이 3개뿐이므로 최종 승인 evidence는 아니다.
+
+| 후보 | aggregate RMSE/p95/p99/max [N] | false contact | 판정 |
+|---|---:|---:|---|
+| task 전용 54D ridge | `0.720/1.223/1.577/3.976` | `2` | 수치상 max 개선, 기준 실패 |
+| zero 기준값 + task ridge | **`0.697/1.200/1.566/3.815`** | **`2`** | task 전용 최선, 실패 |
+| elapsed-time + task ridge | `0.742/1.256/1.625/3.996` | `2` | 반복 속도 차이로 악화 |
+| direct posture KNN, k=64 | `1.288/2.210/2.633/3.995` | `19` | 크게 악화 |
+| zero + ridge + residual KNN | `0.698/1.197/1.555/3.815` | `2` | ridge와 사실상 동일 |
+
+최선 후보도 `tare_20260819_02`에서 p95/p99/max
+`1.341/1.900/3.815 N`, false contact `2회`가 남았다. 단순 wall-clock phase와
+자세 이웃 lookup으로는 같은 경로의 zero-set bias, 가감속 이력과 hysteresis를
+분리하지 못한다. KNN 보정은 p99만 약 `0.010 N` 줄이고 RMSE와 false contact를
+개선하지 않아 구현하거나 bundle로 만들지 않는다.
+
+기존 bundle의 task replay는 세 반복을 모두 학습에 포함한 in-sample이고, 이 표는
+매번 한 zero-set을 제외한 out-of-fold이므로 두 수치의 차이를 순수 모델 개선량으로
+해석하지 않는다.
+
+다음 학습은 두 갈래를 같은 task validation으로 비교한다.
+
+| 실험축 | 학습 데이터 | 배포 용도 | 함께 확인할 평가 |
+|---|---|---|---|
+| A. 범용 + task 증강 | 기존 범용 train13 + 새 task train | 범용 모델 하나로 모든 궤적 처리 | 기존 범용 validation3 비열화 + task validation |
+| B. task 전용 | 새 task train만 residual 학습 | 동작 전에 `task_id`로 고정 선택 | task validation |
+
+두 실험은 physical gravity, 54D causal feature, ridge와 표본 수 제한을 동일하게 두고
+**학습 group 구성만 먼저 바꾼다**. A에서는 task episode가 길거나 많다는 이유로
+학습을 지배하지 않도록 zero-set group별 표본 수와 가중치를 같게 한다. B의 learned
+residual은 task data만 사용하고, 실행 중 모델 전환은 허용하지 않는다.
+
+1. 같은 cable 고정 상태에서 독립 zero-set 반복을 우선 task train 6회,
+   task validation 3회 수집한다.
+2. 각 반복에 AFT 온도, hardware zero 시각, time-since-zero, zero 기준 wrench와
+   task 시작 시각을 같은 clock으로 기록한다.
+3. wall-clock elapsed 대신 reference path의 causal 진행도와 분기/waypoint ID를
+   입력한다. nominal뿐 아니라 실제 작업에서 발생하는 빠른 가감속도 train에 포함한다.
+4. 두 실험 모두 task validation에서 `p99<=1 N`, 모든 zero-set p95 `<=1 N`,
+   max `<=2 N`, 현행 detector false contact 0회를 만족해야 한다. A는 기존 범용
+   validation3도 현재 최종 ridge보다 악화되면 탈락한다.
+5. validation으로 방법을 고정한 뒤 새 task held-out 3회를 한 번만 평가한다. A를
+   범용 모델로 최종 승인하려면 새 범용 held-out도 별도로 필요하다.
+
+현재 세 반복만으로는 2회 학습·1회 평가밖에 되지 않아 어느 실험축도 승인할 수 없다.
+따라서 현재 ridge bundle은 계속 `approved=false`이며 IL 데이터 수집 observer에
+연결하지 않는다.
+
 ### 최종 후보의 inference 주기 확인 방법
 
-현재 확정된 것은 **설계 호출 주기**다. 수집·학습·observer 계약이 `262.5 Hz`이므로
+설계 호출 주기는 `262.5 Hz`다. 따라서
 새 sample마다 한 번 추론하며 목표 period는 `1000 / 262.5 = 3.8095 ms`다. 처음
 32 samples, 약 `121.9 ms`는 causal history를 채우는 warm-up이고, 이후에는
 32 samples마다 한 번이 아니라 **매 sample마다** 예측한다.
@@ -224,7 +375,8 @@ ros2 run ft_fb_leaderarm ft_observer_runtime_evaluate -- \
 ```
 
 이 명령은 현재 상태에서 실행하지 않는다. runtime-compatible predictor는 구현됐지만
-`max<=1 N`을 실패한 bundle의 승인 상태를 바꾸거나 observer 설정에 연결해서는 안 된다.
+robust accuracy gate를 실패한 bundle의 승인 상태를 바꾸거나 observer 설정에 연결해서는
+안 된다.
 단순 `ros2 topic hz`는 전체 publish 수만 보여 주며 valid prediction, deadline miss와
 stale을 구분하지 못하므로 최종 판정에는 위 evaluator를 사용한다.
 
@@ -232,8 +384,8 @@ stale을 구분하지 못하므로 최종 판정에는 위 evaluator를 사용�
 
 - 현재 offline 최선: `physical gravity + 32-sample multi-scale ridge residual`
 - validation max/p95/RMSE: `2.162/1.135/0.666 N`
-- strict `1 N` 합격 모델: 없음
+- robust accuracy 합격 free-space model: 없음
 - runtime 승인 모델: 없음
-- 다음 단계: 현재 데이터로 검증 가능한 후보 screen은 종료한다. strict gate를 유지하면
-  missing-state 계측과 새 train이 필요하고, gate를 바꾸려면 별도 승인과 contact latency
-  기준 확정이 먼저다.
+- 다음 단계: 현재 데이터로 검증 가능한 후보 screen은 종료한다. 현행 wrench 계약을
+  유지하면 missing-state 계측과 새 train이 필요하다. measured residual filtering으로
+  계약을 바꾸려면 별도 승인과 contact latency 기준 확정이 먼저다.

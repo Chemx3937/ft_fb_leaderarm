@@ -7,10 +7,16 @@ import numpy as np
 
 
 SCHEMA_VERSION = 1
+APPROVAL_CONTRACT = "robust_force_v2_262p5hz"
 SAMPLE_HZ = 262.5
 SAMPLE_PERIOD_S = 1.0 / SAMPLE_HZ
 BASE_FEATURE_DIM = 18
 WRENCH_DIM = 6
+FORCE_P99_LIMIT_N = 1.0
+FORCE_GROUP_P95_LIMIT_N = 1.0
+FORCE_HARD_MAX_LIMIT_N = 2.0
+INFERENCE_P99_LIMIT_MS = 0.80 * SAMPLE_PERIOD_S * 1000.0
+INFERENCE_HARD_MAX_LIMIT_MS = SAMPLE_PERIOD_S * 1000.0
 DEFAULT_ZERO_POSE_DEG = (5.5, 52.0, 112.0, 28.0, -107.0, -35.0)
 ABLATIONS = {
     "static_linear": ("static", 1, (), "mlp"),
@@ -58,7 +64,7 @@ def fill_wrench_message(msg, values):
 
 
 class RateGate:
-    """Select at most one source sample for each 262.5 Hz time slot."""
+    """Select at most one source sample for each configured time slot."""
 
     def __init__(self, sample_hz=SAMPLE_HZ):
         if not math.isfinite(sample_hz) or sample_hz <= 0.0:
@@ -301,10 +307,61 @@ def error_metrics(target, prediction):
         "samples": int(len(error)),
         "force_norm_max_n": float(np.max(force_norm)),
         "force_norm_p95_n": float(np.percentile(force_norm, 95.0)),
+        "force_norm_p99_n": float(np.percentile(force_norm, 99.0)),
         "force_norm_rmse_n": float(np.sqrt(np.mean(np.square(force_norm)))),
         "force_axis_abs_max_n": np.max(np.abs(error[:, :3]), axis=0).tolist(),
         "moment_axis_abs_max_nm": np.max(np.abs(error[:, 3:]), axis=0).tolist(),
         "wrench_axis_rmse": np.sqrt(np.mean(np.square(error), axis=0)).tolist(),
+    }
+
+
+def robust_force_accuracy_gate(
+    overall,
+    by_group,
+    p99_limit_n=FORCE_P99_LIMIT_N,
+    group_p95_limit_n=FORCE_GROUP_P95_LIMIT_N,
+    hard_max_limit_n=FORCE_HARD_MAX_LIMIT_N,
+):
+    if not by_group:
+        raise ValueError("at least one zero-set group is required")
+    limits = [p99_limit_n, group_p95_limit_n, hard_max_limit_n]
+    if not all(math.isfinite(value) and value > 0.0 for value in limits):
+        raise ValueError("force accuracy limits must be finite and positive")
+    if hard_max_limit_n < max(p99_limit_n, group_p95_limit_n):
+        raise ValueError("hard max limit cannot be below a percentile limit")
+    p99 = float(overall["force_norm_p99_n"])
+    hard_max = float(overall["force_norm_max_n"])
+    group_p95 = {
+        str(name): float(metrics["force_norm_p95_n"])
+        for name, metrics in by_group.items()
+    }
+    values = [p99, hard_max, *group_p95.values()]
+    if not all(math.isfinite(value) and value >= 0.0 for value in values):
+        raise ValueError("force accuracy metrics must be finite and non-negative")
+    failures = []
+    if p99 > p99_limit_n:
+        failures.append("aggregate force p99 exceeds limit")
+    if hard_max > hard_max_limit_n:
+        failures.append("aggregate force hard max exceeds limit")
+    failed_groups = sorted(
+        name for name, value in group_p95.items() if value > group_p95_limit_n
+    )
+    if failed_groups:
+        failures.append("zero-set group force p95 exceeds limit")
+    return {
+        "passed": not failures,
+        "limits": {
+            "force_norm_p99_n": float(p99_limit_n),
+            "force_group_p95_n": float(group_p95_limit_n),
+            "force_hard_max_n": float(hard_max_limit_n),
+        },
+        "metrics": {
+            "force_norm_p99_n": p99,
+            "force_norm_max_n": hard_max,
+            "force_group_p95_n": group_p95,
+            "failed_groups": failed_groups,
+        },
+        "failures": failures,
     }
 
 

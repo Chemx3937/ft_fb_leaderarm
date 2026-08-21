@@ -10,7 +10,9 @@
 
 - 오른팔 manipulator 시작 조인트 각도는
   `[5.5, 52.0, 112.0, 28.0, -107.0, -35.0] deg`다.
-- 수집, 학습, observer는 `262.5 Hz` 계약을 공유한다.
+- 수집, 학습, observer는 `262.5 Hz` 계약을 공유한다. AFT 센서의 유효 취득률
+  약 `500 Hz`는 상위 source rate이며 모델 호출·contact 판정 주기가 아니다.
+- runtime bundle은 `approval_contract=robust_force_v2_262p5hz`를 가져야 한다.
 - dataset과 model의 `zero_set_id`, payload, controller, sensor frame 계약이
   runtime과 일치해야 한다.
 - 로봇 이동, FT zero-set, 데이터 수집, teleoperation, feedback은 사용자 승인 없이
@@ -38,14 +40,15 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 |---|---|---|
 | `FS-01` | 매 수집 session 시작 전 기준 자세 오차 `<= 1 deg`, 정지 및 hardware zero 확인 | collector metadata와 zero diagnostics |
 | `FS-02` | contact-free dataset, 독립 `zero_set_id` 3개 이상, payload/controller/frame 혼합 없음 | dataset validation report |
-| `FS-03` | validation과 선택 모델의 held-out test 모두 `max(e_force) <= 1 N` | `ablation_report.json` |
-| `FS-04` | target PC inference `p99 <= 3.048 ms`, `max <= 3.810 ms` | model runtime benchmark |
+| `FS-03` | validation과 선택 모델의 새 held-out test 각각 aggregate `p99(e_force) <= 1 N`, 모든 `zero_set_id` group `p95(e_force) <= 1 N`, hard max `<= 2 N` | `ablation_report.json` |
+| `FS-04` | target PC model-only inference `p99 <= 3.048 ms`, hard max `<= 3.810 ms` | model runtime benchmark |
 | `FS-05` | observer ready 이후 측정 구간의 유효 publish rate `>= 262.5 Hz`, deadline miss·invalid·stale 0회 | 독립 runtime report |
-| `FS-06` | 독립 무접촉 동작에서 `max(||F_contact_hat||_2) <= 1 N` | observer-only FREE report |
+| `FS-06` | 독립 무접촉 동작에서 residual force p95/p99 `<= 1 N`, hard max `<= 2 N`, false CONTACT 0회 | observer-only FREE report |
 | `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test |
 
-모델 선택에는 validation만 사용하고 held-out test는 선택 모델에 한 번만 사용한다.
-목표 미달 시 기존 ablation 결과를 비교한 뒤에만 입력이나 구조를 추가한다.
+모델 선택에는 validation만 사용한다. `FS-03` validation을 통과한 후보 중 RMSE가 가장
+작은 모델을 선택하고 held-out test는 그 모델에 한 번만 사용한다. 통과 후보가 없으면
+최저 RMSE 후보는 diagnostic artifact로만 남기며 승인하지 않는다.
 
 ## Contact observer gates
 

@@ -5,6 +5,7 @@ import numpy as np
 from ament_index_python.packages import get_package_share_directory
 
 from ft_fb_leaderarm.contract import (
+    APPROVAL_CONTRACT,
     BASE_FEATURE_DIM,
     DEFAULT_ZERO_POSE_DEG,
     SAMPLE_HZ,
@@ -35,6 +36,7 @@ def test_approved_bundle_round_trip(tmp_path):
     )
     metadata = {
         "schema_version": SCHEMA_VERSION,
+        "approval_contract": APPROVAL_CONTRACT,
         "approved": True,
         "sample_hz": SAMPLE_HZ,
         "base_feature_dim": BASE_FEATURE_DIM,
@@ -101,6 +103,7 @@ def test_lstm_and_gru_bundles_round_trip(tmp_path):
             model,
             {
                 "schema_version": SCHEMA_VERSION,
+                "approval_contract": APPROVAL_CONTRACT,
                 "approved": True,
                 "sample_hz": SAMPLE_HZ,
                 "base_feature_dim": BASE_FEATURE_DIM,
@@ -116,6 +119,38 @@ def test_lstm_and_gru_bundles_round_trip(tmp_path):
             predictor.predict(np.zeros((16, BASE_FEATURE_DIM), dtype=np.float32)),
             0.0,
         )
+
+
+def test_obsolete_approval_contract_is_diagnostic_only(tmp_path):
+    core = WrenchRegressor(12, ())
+    model = make_normalized_model(
+        core,
+        np.zeros(12),
+        np.ones(12),
+        np.zeros(6),
+        np.ones(6),
+    )
+    save_bundle(
+        model,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "approved": True,
+            "sample_hz": SAMPLE_HZ,
+            "base_feature_dim": BASE_FEATURE_DIM,
+            "ablation": "static_linear",
+            "feature_mode": "static",
+            "history": 1,
+            "architecture": "mlp",
+        },
+        tmp_path,
+    )
+    BundlePredictor(tmp_path, require_approved=False)
+    try:
+        BundlePredictor(tmp_path)
+    except RuntimeError as exc:
+        assert "approval contract" in str(exc)
+    else:
+        raise AssertionError("obsolete approval contract was accepted")
 
 
 def test_rejected_physical_ridge_bundle_is_diagnostic_loadable(tmp_path):

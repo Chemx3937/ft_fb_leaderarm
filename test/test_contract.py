@@ -8,6 +8,9 @@ from ft_fb_leaderarm.contract import (
     BASE_FEATURE_DIM,
     CausalFeatureBuilder,
     DEFAULT_ZERO_POSE_DEG,
+    FORCE_GROUP_P95_LIMIT_N,
+    FORCE_HARD_MAX_LIMIT_N,
+    FORCE_P99_LIMIT_N,
     FixedPoseZeroVerifier,
     RateGate,
     SAMPLE_HZ,
@@ -15,6 +18,7 @@ from ft_fb_leaderarm.contract import (
     error_metrics,
     episode_timing_quality,
     project_feature_windows,
+    robust_force_accuracy_gate,
     sensor_wrench_to_base,
 )
 
@@ -101,6 +105,24 @@ def test_error_gate_uses_force_vector_norm_maximum():
     prediction[1, :3] = [0.6, 0.8, 0.0]
     metrics = error_metrics(target, prediction)
     assert np.isclose(metrics["force_norm_max_n"], 1.0)
+
+
+def test_robust_force_gate_checks_tail_groups_and_hard_peak():
+    overall = {
+        "force_norm_p99_n": FORCE_P99_LIMIT_N,
+        "force_norm_max_n": FORCE_HARD_MAX_LIMIT_N,
+    }
+    groups = {
+        "tare01": {"force_norm_p95_n": FORCE_GROUP_P95_LIMIT_N},
+    }
+    assert robust_force_accuracy_gate(overall, groups)["passed"]
+    groups["tare02"] = {"force_norm_p95_n": 1.01}
+    rejected = robust_force_accuracy_gate(overall, groups)
+    assert not rejected["passed"]
+    assert rejected["metrics"]["failed_groups"] == ["tare02"]
+    overall.update(force_norm_p99_n=1.01, force_norm_max_n=2.01)
+    rejected = robust_force_accuracy_gate(overall, {"tare01": groups["tare01"]})
+    assert len(rejected["failures"]) == 2
 
 
 def test_episode_timing_rejects_a_hidden_long_gap():

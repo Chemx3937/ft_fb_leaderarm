@@ -243,8 +243,9 @@ noise-free resolution(STD)에 맞춘 것이다. 변경 근거와 영향은
 
 현재 실측에서는 ROS topic은 약 1000 Hz지만 raw CAN의 새 force/torque 쌍은 약
 500 Hz이고 연속 force 값 약 50%가 중복된다. sensor2 설정은 `sample_rate: 500`으로
-맞췄지만 driver 초기화에서는 아직 실제 CAN으로 전송되지 않는다. collector의 목표 262.5 Hz에는 부족하지
-않지만 동적 timestamp 검증 전에는 이를 1000 Hz 실측 데이터로 해석하지 않는다.
+맞췄지만 driver 초기화에서는 아직 실제 CAN으로 전송되지 않는다. collector의
+262.5 Hz 목표에는 충분하지만 동적 timestamp 검증 전에는 이를 1000 Hz 실측
+데이터로 해석하지 않는다.
 현재 driver는 CAN frame을 controller cycle당 하나만 읽으므로 실제 500 Hz를 임시
 운용 계약으로 사용한다. 공식 센서 사양상 1000 Hz는 가능하지만 sample당
 force/torque 두 frame이어서 driver read 경로 수정 없이 올리면 backlog 위험이 있다.
@@ -428,7 +429,9 @@ ros2 run ft_fb_leaderarm ft_free_space_train -- \
   --epochs 60 \
   --batch-size 1024 \
   --learning-rate 0.001 \
-  --max-force-error-n 1.0 \
+  --max-force-p99-n 1.0 \
+  --max-group-force-p95-n 1.0 \
+  --hard-max-force-error-n 2.0 \
   --benchmark-calls 2000
 ```
 
@@ -441,13 +444,14 @@ ros2 run ft_fb_leaderarm ft_free_space_train -- \
 
 ```bash
 jq -r '
-  ["model","architecture","history","max_N","p95_N","rmse_N"],
+  ["model","architecture","history","p99_N","p95_N","max_N","rmse_N"],
   (.ablations[] | [
     .name,
     .architecture,
     (.history|tostring),
-    (.validation.force_norm_max_n|tostring),
+    (.validation.force_norm_p99_n|tostring),
     (.validation.force_norm_p95_n|tostring),
+    (.validation.force_norm_max_n|tostring),
     (.validation.force_norm_rmse_n|tostring)
   ]) | @tsv' \
   "${FT_MODEL_DIR}/ablation_report.json"
@@ -476,6 +480,8 @@ jq '{
 ```
 
 `approved=true`가 아니면 다음 단계로 진행하지 않는다.
+
+승인 dataset과 runtime model의 `sample_hz`는 모두 `262.5`여야 한다.
 
 ## 9. 승인 모델 observer-only 검증
 

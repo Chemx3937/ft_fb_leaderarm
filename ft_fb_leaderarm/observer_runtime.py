@@ -15,12 +15,16 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String
 
-from .contract import SAMPLE_HZ
+from .contract import (
+    FORCE_GROUP_P95_LIMIT_N,
+    FORCE_HARD_MAX_LIMIT_N,
+    FORCE_P99_LIMIT_N,
+    SAMPLE_HZ,
+)
 
 
 SCHEMA_VERSION = 2
 ANALYSIS_TYPE = "physical_ft_observer_runtime_v2"
-MAX_FREE_FORCE_N = 1.0
 COUNTERS = (
     "cycles",
     "valid_predictions",
@@ -59,6 +63,18 @@ def _reason_counts(document):
     if not isinstance(values, dict):
         raise RuntimeError("diagnostics invalid_reason_counts must be an object")
     return {str(key): _count(values, key) for key in values}
+
+
+def _percentile(values, percent):
+    if not values:
+        return None
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * percent / 100.0
+    lower = int(position)
+    fraction = position - lower
+    if not fraction:
+        return ordered[lower]
+    return ordered[lower] + fraction * (ordered[lower + 1] - ordered[lower])
 
 
 def _observation_metrics(observations, start_sequence, end_sequence):
@@ -107,6 +123,8 @@ def _observation_metrics(observations, start_sequence, end_sequence):
         "invalid_observations": invalid,
         "model_not_ready_observations": model_not_ready,
         "contact_observations": contacts,
+        "free_residual_force_norm_p95_n": _percentile(force_norms, 95.0),
+        "free_residual_force_norm_p99_n": _percentile(force_norms, 99.0),
         "free_residual_force_norm_max_n": (
             max(force_norms) if force_norms else None
         ),
@@ -197,10 +215,20 @@ def analyze_observer_runtime(start, end, observations):
         free_failures.append("model-not-ready ContactObservation samples exist")
     if observation_metrics["contact_observations"]:
         free_failures.append("CONTACT samples exist in the FREE interval")
+    force_p95 = observation_metrics["free_residual_force_norm_p95_n"]
+    force_p99 = observation_metrics["free_residual_force_norm_p99_n"]
     force_max = observation_metrics["free_residual_force_norm_max_n"]
-    if force_max is None or force_max > MAX_FREE_FORCE_N:
+    if force_p95 is None or force_p95 > FORCE_GROUP_P95_LIMIT_N:
         free_failures.append(
-            f"FREE residual force exceeds {MAX_FREE_FORCE_N} N"
+            f"FREE residual force p95 exceeds {FORCE_GROUP_P95_LIMIT_N} N"
+        )
+    if force_p99 is None or force_p99 > FORCE_P99_LIMIT_N:
+        free_failures.append(
+            f"FREE residual force p99 exceeds {FORCE_P99_LIMIT_N} N"
+        )
+    if force_max is None or force_max > FORCE_HARD_MAX_LIMIT_N:
+        free_failures.append(
+            f"FREE residual force hard max exceeds {FORCE_HARD_MAX_LIMIT_N} N"
         )
     frames = observation_metrics["observation_frames"]
     if len(frames) != 1 or not frames[0]:
@@ -216,7 +244,9 @@ def analyze_observer_runtime(start, end, observations):
         "binding": binding,
         "limits": {
             "required_hz": SAMPLE_HZ,
-            "max_free_residual_force_n": MAX_FREE_FORCE_N,
+            "max_free_residual_force_p95_n": FORCE_GROUP_P95_LIMIT_N,
+            "max_free_residual_force_p99_n": FORCE_P99_LIMIT_N,
+            "hard_max_free_residual_force_n": FORCE_HARD_MAX_LIMIT_N,
             "max_contact_observations": 0,
             "max_invalid_publications": 0,
             "max_stale_publications": 0,

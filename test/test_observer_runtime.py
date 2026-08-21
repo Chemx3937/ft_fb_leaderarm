@@ -70,7 +70,8 @@ def test_observer_runtime_and_free_space_gates():
     assert runtime_rejected["metrics"]["stale_publications"] == 1
 
     contact_samples = [dict(row) for row in free_samples]
-    contact_samples[-1]["contact_wrench"] = [1.01, 0.0, 0.0, 0.0, 0.0, 0.0]
+    for sample in contact_samples:
+        sample["contact_wrench"] = [1.01, 0.0, 0.0, 0.0, 0.0, 0.0]
     contact_samples[-1]["contact_state"] = 1
     free_rejected = analyze_observer_runtime(
         start, snapshot(12.0, 2725, 2725), contact_samples
@@ -78,7 +79,7 @@ def test_observer_runtime_and_free_space_gates():
     assert free_rejected["gates"]["FS-05"]["passed"]
     assert not free_rejected["gates"]["FS-06"]["passed"]
     assert "CONTACT samples exist in the FREE interval" in free_rejected["failures"]
-    assert "FREE residual force exceeds 1.0 N" in free_rejected["failures"]
+    assert "FREE residual force p99 exceeds 1.0 N" in free_rejected["failures"]
 
     missing = analyze_observer_runtime(
         start, snapshot(12.0, 2725, 2725), free_samples[:-1]

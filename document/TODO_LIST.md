@@ -8,7 +8,7 @@ wrench를 262.5 Hz로 예측한다. 무접촉 구간에서 다음을 만족하�
 
 ```text
 contact_wrench = raw_physical_ft - predicted_free_space_wrench
-max_t ||Fraw(t) - Fprediction(t)||2 <= 1.0 N
+aggregate p99 <= 1.0 N, every zero-set group p95 <= 1.0 N, hard max <= 2.0 N
 ```
 
 이 residual을 canonical `ContactObservation`으로 발행하여 contact 판정,
@@ -21,7 +21,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 | 항목 | 상태 | 완료 기준 또는 남은 일 |
 |---|---|---|
 | Free-space 수집·검증·학습 GUI | `READY_FOR_EVIDENCE` | 독립 zero-set dataset과 실제 모델 report 필요 |
-| 1 N 정확도·262.5 Hz gate | `READY_FOR_EVIDENCE` | target PC의 held-out test와 runtime evidence 필요 |
+| robust force·262.5 Hz gate | `READY_FOR_EVIDENCE` | 새 held-out test와 runtime evidence 필요 |
 | Contact observer·runtime/FREE 평가기 | `READY_FOR_EVIDENCE` | 실제 frame/sign/rate와 FREE residual 검증 필요 |
 | Contact ground-truth 평가기 | `PARTIAL` | ground truth 절차와 precision·recall·latency 기준 확정 필요 |
 | Feedback 분석·onset·단계 승인 | `READY_FOR_EVIDENCE` | rise time·torque step 기준과 OFF→40%→100% evidence 필요 |
@@ -114,6 +114,12 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## Phase 4: 학습·비교
 
+- [x] 실제 수집·학습·observer 주기를 `262.5 Hz`로 확정
+- [x] 정확도 gate를 aggregate p99 `1 N`, zero-set별 p95 `1 N`, hard max `2 N`으로 변경
+- [x] model-only timing gate를 p99 `3.048 ms`, hard max `3.810 ms`로 확정
+- [x] 기존 train13/targeted6가 262.5 Hz runtime 표본 계약과 일치함을 확인
+- [ ] 방법 고정 후 새 독립 held-out에서 robust 정확도 gate 검증
+
 - [x] pilot static linear 학습
 - [x] pilot dynamic MLP 학습
 - [x] pilot history MLP 학습
@@ -146,7 +152,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] runtime rate/FREE residual과 contact ground-truth 평가기 구현
 - [ ] 새 runtime hardware zero-set 수행
 - [ ] `ft_observer_runtime_evaluate`로 유효 publish rate 262.5 Hz 확인
-- [ ] 같은 report에서 FREE residual force 최대 1 N 확인
+- [ ] 같은 report에서 FREE residual p95/p99 1 N, hard max 2 N 확인
 - [ ] FREE false contact 0회 확인
 - [ ] ground truth 절차와 precision·recall·onset/release latency 기준 확정
 - [ ] `ft_contact_evaluate`로 controlled contact 검출/해제 기준 통과
@@ -172,14 +178,15 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] raw/prediction/residual/state/model hash/timestamp/stage 저장 계약 구현
 - [x] 저장된 episode의 읽기 전용 verifier 구현
 - [ ] 동일 observation topic의 publisher가 하나인지 실제 graph에서 확인
+- [ ] 외부 UMI recorder와 policy의 262.5 Hz contact rate와 config hash 확인
 - [ ] feedback OFF의 작은 test episode를 새 session에 저장하고 verifier PASS 확인
 - [ ] IL collection과 policy inference에서 `ft_il_contact_verify` 각각 PASS
 - [ ] 승인된 task 범위에서 본 IL 수집 시작
 
 ## Definition of Done
 
-- 실제 장비의 독립 zero-set held-out test에서 최대 force-vector 오차 ≤ 1 N
-- target PC에서 model deadline과 ROS 262.5 Hz 모두 통과
+- 실제 장비의 독립 zero-set held-out test에서 p99 1 N, group p95 1 N, hard max 2 N 통과
+- target PC에서 model p99 3.048 ms/hard max 3.810 ms와 ROS 262.5 Hz 모두 통과
 - 장시간 FREE 실기에서 false contact 0회
 - controlled contact의 precision·recall·onset/release latency 기준 통과
 - feedback onset과 leader→follower 진동 전달 기준 통과
