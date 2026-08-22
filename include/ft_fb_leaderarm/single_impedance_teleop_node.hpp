@@ -45,6 +45,7 @@
 #include <pinocchio/spatial/se3.hpp>
 
 #include "ft_fb_leaderarm/dynamixel_bus.hpp"
+#include "ft_fb_leaderarm/intent_trajectory_generator.hpp"
 
 namespace teleop_cpp {
 
@@ -324,6 +325,18 @@ private:
   std::optional<Vec3> impedance_last_pos_;
   std::optional<Mat3> impedance_last_R_;
   double impedance_last_t_{0.0};
+
+  // FAST command path: raw follower FK -> leader intent -> final safety slew.
+  IntentTrajectoryGenerator intent_generator_;
+  bool intent_generator_enabled_{true};
+  std::optional<Vec3> task_raw_last_pos_;
+  std::optional<Mat3> task_raw_last_R_;
+  double task_raw_last_t_{0.0};
+  Vec6 last_task_raw_mm_rpy_deg_{Vec6::Zero()};
+  Vec6 last_task_intent_mm_rpy_deg_{Vec6::Zero()};
+  Vec6 last_task_raw_velocity_{Vec6::Zero()};
+  Vec6 last_task_intent_velocity_{Vec6::Zero()};
+  Vec6 last_task_intent_acceleration_{Vec6::Zero()};
 
   // SE3 transform: workspace -> command base
   bool has_workspace_M_command_{false};

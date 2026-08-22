@@ -24,6 +24,7 @@ def test_ft_teleop_is_built_from_local_sources():
     expected_sources = (
         "single_impedance_teleop_main.cpp",
         "single_impedance_teleop_node.cpp",
+        "intent_trajectory_generator.cpp",
         "single_impedance_gravity_compensation.cpp",
         "single_impedance_pose_publisher.cpp",
         "single_impedance_wrench_feedback.cpp",
@@ -52,6 +53,43 @@ def test_ft_teleop_config_cannot_default_to_jt_feedback():
     assert "tau_fb_contact_scale_ * contact_wrench" in source
 
 
+def test_fast_teleop_publishes_limited_leader_intent_not_raw_fk():
+    config = yaml.safe_load(
+        (PACKAGE_ROOT / "config/single_impedance_leader_damping.yaml").read_text()
+    )["leader_teleop_node"]["ros__parameters"]
+    assert config["intent_generator_enabled"] is True
+    assert config["intent_linear_natural_frequency_hz"] > 0.0
+    assert config["intent_angular_natural_frequency_hz"] > 0.0
+    assert config["intent_damping_ratio"] >= 1.0
+    assert (
+        0.0
+        < config["intent_max_linear_velocity_mm_s"]
+        <= config["impedance_linear_speed_mm_s"]
+    )
+    assert (
+        0.0
+        < config["intent_max_angular_velocity_deg_s"]
+        <= config["impedance_angular_speed_deg_s"]
+    )
+    for key in (
+        "intent_max_linear_acceleration_mm_s2",
+        "intent_max_linear_jerk_mm_s3",
+        "intent_max_angular_acceleration_deg_s2",
+        "intent_max_angular_jerk_deg_s3",
+    ):
+        assert config[key] > 0.0
+
+    source = (
+        PACKAGE_ROOT / "src/single_impedance_pose_publisher.cpp"
+    ).read_text()
+    update_index = source.index("intent_generator_.update(")
+    publish_index = source.index("pub_impedance_->publish(msg)")
+    assert update_index < publish_index
+    assert "const pinocchio::SE3 intent_command" in source
+    assert "Vec3 command_pos = intent_command.translation()" in source
+    assert "2.0 * dt_" in source
+
+
 def test_integrated_launch_uses_only_local_teleop_executable():
     launch = (
         PACKAGE_ROOT / "launch/ft_feedback_leader_teleop.launch.py"
@@ -63,6 +101,8 @@ def test_integrated_launch_uses_only_local_teleop_executable():
     assert '"feedback_source": "contact_observer"' in launch
     assert '"feedback_source": "off"' not in launch
     assert "scaled_leader_overrides" in launch
+    assert '"intent_generator_enabled": smooth_teleop_enabled' in launch
+    assert 'DeclareLaunchArgument("smooth_teleop_enable", default_value="true")' in launch
     assert 'default_value="0.40"' in launch
     assert "0.20, 0.40, 0.80" not in launch
 
@@ -191,6 +231,11 @@ def test_ft_feedback_csv_contains_automatic_analysis_contract():
         "observer_contact_state",
         "observer_contact_score_N",
         "observer_prediction_sequence",
+        "task_raw_x_mm",
+        "task_intent_x_mm",
+        "task_intent_vx_m_s",
+        "task_intent_ax_m_s2",
+        "task_command_x_mm",
     ):
         assert column in source
     cmake = (PACKAGE_ROOT / "CMakeLists.txt").read_text()
@@ -203,6 +248,7 @@ def test_ft_feedback_csv_contains_automatic_analysis_contract():
 def test_teleop_status_exposes_feedback_stage_for_il_recorder():
     source = (PACKAGE_ROOT / "src/single_impedance_keyboard_fsm.cpp").read_text()
     assert r'\"feedback_gain_scale_contract\":' in source
+    assert r'\"smooth_teleop_enabled\":' in source
 
 
 def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
@@ -213,6 +259,7 @@ def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
     assert "ft_feedback_leader_teleop.launch.py" in source
     assert '"--model-sha256", model_hash' in source
     assert '"--feedback-gain-scale-contract", str(stage)' in source
+    assert '"leader_stale_timeout", "smooth_teleop_enable"' in source
     assert (
         'DeclareLaunchArgument("require_output_mount", default_value="true")'
         in source

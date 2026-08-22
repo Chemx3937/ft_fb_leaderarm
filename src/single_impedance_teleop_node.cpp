@@ -210,6 +210,16 @@ void LeaderTeleopNode::declare_and_load_params() {
   p("impedance_linear_speed_mm_s", 300.0);
   p("impedance_angular_speed_deg_s", 300.0);
   p("impedance_first_publish_clip_guard_mm", 20.0);
+  p("intent_generator_enabled", true);
+  p("intent_linear_natural_frequency_hz", 4.0);
+  p("intent_angular_natural_frequency_hz", 4.0);
+  p("intent_damping_ratio", 1.0);
+  p("intent_max_linear_velocity_mm_s", 300.0);
+  p("intent_max_linear_acceleration_mm_s2", 1000.0);
+  p("intent_max_linear_jerk_mm_s3", 10000.0);
+  p("intent_max_angular_velocity_deg_s", 300.0);
+  p("intent_max_angular_acceleration_deg_s2", 720.0);
+  p("intent_max_angular_jerk_deg_s3", 7200.0);
 
   p("left_workspace_min", std::vector<double>{0.00, -0.25, -0.50});
   p("left_workspace_max", std::vector<double>{0.50, 0.40, 0.40});
@@ -332,6 +342,9 @@ void LeaderTeleopNode::build_arm_config() {
   arm_.side = side;
 
   int hz = get_parameter("control_hz").as_int();
+  if (hz <= 0) {
+    throw std::invalid_argument("control_hz must be > 0");
+  }
   dt_ = 1.0 / static_cast<double>(hz);
   diagnostics_config_.log_period_sec = get_parameter("log_period_sec").as_double();
   diagnostics_config_.color_log = get_parameter("color_log").as_bool();
@@ -424,6 +437,46 @@ void LeaderTeleopNode::build_arm_config() {
   impedance_ang_speed_rad_s_ = std::max(1e-6, ang_deg * M_PI / 180.0);
   impedance_first_publish_clip_guard_m_ =
     std::max(0.0, get_parameter("impedance_first_publish_clip_guard_mm").as_double()) / 1000.0;
+
+  IntentTrajectoryConfig intent_config;
+  intent_config.enabled = get_parameter("intent_generator_enabled").as_bool();
+  intent_config.linear_natural_frequency_hz =
+    get_parameter("intent_linear_natural_frequency_hz").as_double();
+  intent_config.angular_natural_frequency_hz =
+    get_parameter("intent_angular_natural_frequency_hz").as_double();
+  intent_config.damping_ratio =
+    get_parameter("intent_damping_ratio").as_double();
+  intent_config.max_linear_velocity_m_s =
+    get_parameter("intent_max_linear_velocity_mm_s").as_double() / 1000.0;
+  intent_config.max_linear_acceleration_m_s2 =
+    get_parameter("intent_max_linear_acceleration_mm_s2").as_double() / 1000.0;
+  intent_config.max_linear_jerk_m_s3 =
+    get_parameter("intent_max_linear_jerk_mm_s3").as_double() / 1000.0;
+  intent_config.max_angular_velocity_rad_s =
+    get_parameter("intent_max_angular_velocity_deg_s").as_double() * M_PI / 180.0;
+  intent_config.max_angular_acceleration_rad_s2 =
+    get_parameter("intent_max_angular_acceleration_deg_s2").as_double() * M_PI / 180.0;
+  intent_config.max_angular_jerk_rad_s3 =
+    get_parameter("intent_max_angular_jerk_deg_s3").as_double() * M_PI / 180.0;
+  if (intent_config.max_linear_velocity_m_s >
+        impedance_lin_speed_m_s_ + 1.0e-12 ||
+      intent_config.max_angular_velocity_rad_s >
+        impedance_ang_speed_rad_s_ + 1.0e-12) {
+    throw std::invalid_argument(
+      "intent velocity limits must not exceed final impedance slew limits");
+  }
+  intent_generator_.configure(intent_config);
+  intent_generator_enabled_ = intent_config.enabled;
+  RCLCPP_INFO(get_logger(),
+    "[INTENT] %s | fn linear/angular %.2f/%.2f Hz | zeta %.2f | "
+    "v/a/j %.0f/%.0f/%.0f mm units",
+    intent_generator_enabled_ ? "enabled" : "disabled",
+    intent_config.linear_natural_frequency_hz,
+    intent_config.angular_natural_frequency_hz,
+    intent_config.damping_ratio,
+    intent_config.max_linear_velocity_m_s * 1000.0,
+    intent_config.max_linear_acceleration_m_s2 * 1000.0,
+    intent_config.max_linear_jerk_m_s3 * 1000.0);
 
   auto ws_min = get_parameter(side + "_workspace_min").as_double_array();
   auto ws_max = get_parameter(side + "_workspace_max").as_double_array();
@@ -2528,10 +2581,21 @@ void LeaderTeleopNode::init_csv_log() {
     return;
   }
 
-  csv_file_ << "t_s,dt_ms,hz_inst,state,feedback_gain_scale_contract,"
+  csv_file_ << "t_s,dt_ms,hz_inst,state,feedback_gain_scale_contract,smooth_teleop_enabled,"
                "grav_scale_j1,grav_scale_j2,grav_scale_j3,grav_scale_j4,grav_scale_j5,grav_scale_j6,"
                "leader_j1_deg,leader_j2_deg,leader_j3_deg,leader_j4_deg,leader_j5_deg,leader_j6_deg,"
                "follower_j1_deg,follower_j2_deg,follower_j3_deg,follower_j4_deg,follower_j5_deg,follower_j6_deg,"
+               "task_raw_x_mm,task_raw_y_mm,task_raw_z_mm,task_raw_rx_deg,task_raw_ry_deg,task_raw_rz_deg,"
+               "task_raw_vx_m_s,task_raw_vy_m_s,task_raw_vz_m_s,"
+               "task_raw_wx_rad_s,task_raw_wy_rad_s,task_raw_wz_rad_s,"
+               "task_intent_x_mm,task_intent_y_mm,task_intent_z_mm,"
+               "task_intent_rx_deg,task_intent_ry_deg,task_intent_rz_deg,"
+               "task_intent_vx_m_s,task_intent_vy_m_s,task_intent_vz_m_s,"
+               "task_intent_wx_rad_s,task_intent_wy_rad_s,task_intent_wz_rad_s,"
+               "task_intent_ax_m_s2,task_intent_ay_m_s2,task_intent_az_m_s2,"
+               "task_intent_alphax_rad_s2,task_intent_alphay_rad_s2,task_intent_alphaz_rad_s2,"
+               "task_command_x_mm,task_command_y_mm,task_command_z_mm,"
+               "task_command_rx_deg,task_command_ry_deg,task_command_rz_deg,"
                "fe_raw_fx,fe_raw_fy,fe_raw_fz,fe_raw_mx,fe_raw_my,fe_raw_mz,fe_age_ms,"
                "observer_valid,observer_model_ready,observer_source_age_ms,"
                "observer_contact_state,observer_contact_score_N,"
@@ -2611,13 +2675,20 @@ void LeaderTeleopNode::csv_log_row() {
 
   csv_file_ << std::fixed << std::setprecision(4)
             << t << ',' << dt_ms << ',' << hz_inst << ','
-            << state_name(state_) << ',' << feedback_gain_scale_contract_;
+            << state_name(state_) << ',' << feedback_gain_scale_contract_
+            << ',' << (intent_generator_enabled_ ? 1 : 0);
   for (int i = 0; i < 6; ++i) csv_file_ << ',' << grav_scale_[i];
   for (int i = 0; i < 6; ++i) csv_file_ << ',' << (q_leader_[i] * 180.0 / M_PI);
   for (int i = 0; i < 6; ++i) {
     csv_file_ << ',';
     if (has_foll) csv_file_ << (q_foll[i] * 180.0 / M_PI);
   }
+  for (int i = 0; i < 6; ++i) csv_file_ << ',' << last_task_raw_mm_rpy_deg_[i];
+  for (int i = 0; i < 6; ++i) csv_file_ << ',' << last_task_raw_velocity_[i];
+  for (int i = 0; i < 6; ++i) csv_file_ << ',' << last_task_intent_mm_rpy_deg_[i];
+  for (int i = 0; i < 6; ++i) csv_file_ << ',' << last_task_intent_velocity_[i];
+  for (int i = 0; i < 6; ++i) csv_file_ << ',' << last_task_intent_acceleration_[i];
+  for (int i = 0; i < 6; ++i) csv_file_ << ',' << last_task_cmd_mm_rpy_deg_[i];
   for (int i = 0; i < 6; ++i) csv_file_ << ',' << fe_raw[i];
   csv_file_ << ',' << fe_age_ms;
   csv_file_ << ',' << (observer_valid ? 1 : 0)

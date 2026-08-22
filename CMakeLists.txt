@@ -93,6 +93,7 @@ endif()
 
 set(LEADER_SOURCES
   src/single_impedance_teleop_node.cpp
+  src/intent_trajectory_generator.cpp
   src/dynamixel_bus.cpp
   src/single_impedance_gravity_compensation.cpp
   src/single_impedance_pose_publisher.cpp
@@ -159,7 +160,16 @@ install(FILES README.md
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_cmake_pytest REQUIRED)
+  ament_add_gtest(test_intent_trajectory_generator
+    test/test_intent_trajectory_generator.cpp
+    src/intent_trajectory_generator.cpp
+  )
+  target_include_directories(test_intent_trajectory_generator PRIVATE
+    include
+    ${EIGEN3_INCLUDE_DIR}
+  )
   ament_add_pytest_test(${PROJECT_NAME}_pytest test TIMEOUT 180)
 endif()
 

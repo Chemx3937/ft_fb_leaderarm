@@ -123,7 +123,8 @@ def _setup(context):
             "zero_set_confirmed", "zero_set_id", "payload_id",
             "controller_config_hash", "learned_feedback_enable",
             "feedback_gain_scale", "feedback_authorization",
-            "leader_stale_timeout", "keyboard_input_enabled",
+            "leader_stale_timeout", "smooth_teleop_enable",
+            "keyboard_input_enabled",
         )
     }
     gui_log_dir = output_dir / session / "collection_logs" / datetime.now().strftime(
@@ -177,6 +178,7 @@ def generate_launch_description():
         DeclareLaunchArgument("feedback_gain_scale", default_value="0.40"),
         DeclareLaunchArgument("feedback_authorization", default_value=""),
         DeclareLaunchArgument("leader_stale_timeout", default_value="0.020"),
+        DeclareLaunchArgument("smooth_teleop_enable", default_value="true"),
         DeclareLaunchArgument("keyboard_input_enabled", default_value="true"),
         OpaqueFunction(function=_setup),
     ])

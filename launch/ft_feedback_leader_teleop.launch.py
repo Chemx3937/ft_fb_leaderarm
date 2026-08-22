@@ -33,6 +33,10 @@ def _setup(context, ft_share, observer_launch):
         "learned_feedback_enable",
         LaunchConfiguration("learned_feedback_enable").perform(context),
     )
+    smooth_teleop_enabled = _as_bool(
+        "smooth_teleop_enable",
+        LaunchConfiguration("smooth_teleop_enable").perform(context),
+    )
     try:
         requested_scale = float(
             LaunchConfiguration("feedback_gain_scale").perform(context)
@@ -83,6 +87,7 @@ def _setup(context, ft_share, observer_launch):
         "use_jt_wrench_feedback": False,
         "use_pre_contact_phase": False,
         "tau_fb_contact_gate_enable": False,
+        "intent_generator_enabled": smooth_teleop_enabled,
         "keyboard_input_enabled": LaunchConfiguration("keyboard_input_enabled"),
     }
     leader_overrides.update(
@@ -91,6 +96,8 @@ def _setup(context, ft_share, observer_launch):
     print(
         "[FT FEEDBACK] observer subscription=ON, reflected torque="
         + (f"ON at {gain_scale:.0%}" if feedback_enabled else "OFF (zero gain)")
+        + ", smooth teleop="
+        + ("ON" if smooth_teleop_enabled else "OFF")
     )
 
     return [
@@ -142,6 +149,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument("feedback_authorization", default_value=""),
         DeclareLaunchArgument("leader_stale_timeout", default_value="0.020"),
+        DeclareLaunchArgument("smooth_teleop_enable", default_value="true"),
         DeclareLaunchArgument("keyboard_input_enabled", default_value="true"),
     ]
     return LaunchDescription(

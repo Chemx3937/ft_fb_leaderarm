@@ -28,6 +28,7 @@ contact observation과 오른팔 leader feedback을 제공한다.
 | Observer runtime/FREE 평가 | `ft_fb_leaderarm/observer_runtime.py` | `scripts/ft_observer_runtime_evaluate`, `test/test_observer_runtime.py` |
 | Feedback 분석과 승인 | `ft_fb_leaderarm/feedback_analysis.py`, `ft_fb_leaderarm/feedback_authorization.py` | `scripts/ft_feedback_analyze`, `scripts/ft_feedback_onset_evaluate`, `scripts/ft_feedback_authorize`, 관련 테스트 |
 | Leader teleoperation | `src/single_impedance_*.cpp`, `include/ft_fb_leaderarm/` | `launch/ft_feedback_leader_teleop.launch.py`, `config/single_impedance_leader_damping.yaml`, `test/test_teleop_integration.py` |
+| Leader intent/smoothing | `src/intent_trajectory_generator.cpp`, `src/single_impedance_pose_publisher.cpp` | `config/single_impedance_leader_damping.yaml`, `test/test_intent_trajectory_generator.cpp`, `document/stabilization_teleoperation/` |
 | Feedback IL 수집 GUI | `launch/ft_feedback_leader_data_collection.launch.py` | UMI recorder와 `../fb_leaderarm` GUI |
 | 데이터 수집 GUI | `scripts/ft_free_space_collection_gui.py` | `launch/collect_free_space_gui.launch.py` |
 | 자동 검증 | `docs/verification.md`, `test/` | `CMakeLists.txt`의 `BUILD_TESTING` 영역 |

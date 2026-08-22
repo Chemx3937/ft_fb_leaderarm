@@ -26,6 +26,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 | Contact ground-truth 평가기 | `PARTIAL` | ground truth 절차와 precision·recall·latency 기준 확정 필요 |
 | Feedback 분석·onset·단계 승인 | `READY_FOR_EVIDENCE` | rise time·torque step 기준과 OFF→40%→100% evidence 필요 |
 | Feedback 진동 전달 검증 | `PARTIAL` | 사용자 요청 시 metric과 합격 기준을 정해 재개 |
+| [Smooth teleop intent generator](stabilization_teleoperation/smooth_teleop_implementation.md) | `READY_FOR_EVIDENCE` | software filter/limiter 구현 완료, 동일 task hardware A/B 필요 |
 | IL contact 계약 검증 | `READY_FOR_EVIDENCE` | collection/inference 양쪽의 실제 graph/message report 필요 |
 | Feedback IL 통합 GUI·episode 검증 | `READY_FOR_EVIDENCE` | 새 session의 test episode와 PASS report 필요 |
 
@@ -161,6 +162,9 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 ## Phase 6: 단계별 feedback 승인
 
 - [x] feedback 분석·authorization·onset evaluator 구현
+- [x] raw FK와 follower command 사이에 2차 intent generator와 velocity/acceleration/jerk limit 구현
+- [x] raw/intent/final command CSV 분리 logging과 software 회귀 테스트 추가
+- [ ] 동일 task에서 기존 contact-observer 대비 command/actual/joint smoothness A/B 검증
 - [ ] CONTACT rise time과 최대 torque step 기준 확정
 - [ ] feedback-OFF FREE CSV 3개 이상 수집
 - [ ] feedback-OFF controlled-CONTACT CSV 수집

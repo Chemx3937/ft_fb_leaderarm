@@ -458,6 +458,28 @@ leader_teleop_node:
     # task-space orientation command slew limit입니다. 단위는 deg/s입니다.
     impedance_angular_speed_deg_s: 300.0
 
+    # Leader raw FK target을 follower에 직접 보내지 않고 causal 2차 reference
+    # generator를 거쳐 leader_intent를 만듭니다. false는 기존 raw+slew 경로입니다.
+    intent_generator_enabled: true
+
+    # 3 Hz 이상에서 관측된 광대역 command jitter를 줄이기 위한 시작값입니다.
+    # damping_ratio=1.0은 overshoot를 억제하는 critical damping입니다.
+    intent_linear_natural_frequency_hz: 4.0
+    intent_angular_natural_frequency_hz: 4.0
+    intent_damping_ratio: 1.0
+
+    # Intent의 속도 제한은 기존 최종 impedance slew limit보다 크지 않게 둡니다.
+    intent_max_linear_velocity_mm_s: 300.0
+    intent_max_angular_velocity_deg_s: 300.0
+
+    # Gravity/feedback artifact의 순간적인 movement spike가 follower command로
+    # 전달되지 않도록 intent acceleration과 jerk를 함께 제한합니다.
+    # 아래 값은 500 Hz software 시작값이며 실기 A/B evidence 후 조정합니다.
+    intent_max_linear_acceleration_mm_s2: 1000.0
+    intent_max_linear_jerk_mm_s3: 10000.0
+    intent_max_angular_acceleration_deg_s2: 720.0
+    intent_max_angular_jerk_deg_s3: 7200.0
+
     # limiter 초기화 전 첫 publish에서 workspace clip 양이 이 값보다 크면 command를 보내지 않고 경고만 출력합니다.
     # 0이면 guard를 비활성화합니다. 단위는 mm입니다.
     impedance_first_publish_clip_guard_mm: 20.0
