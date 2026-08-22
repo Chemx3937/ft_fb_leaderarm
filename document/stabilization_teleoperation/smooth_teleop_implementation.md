@@ -104,6 +104,9 @@ leader teleoperation CSV에 다음 세 신호를 함께 저장한다.
 하드웨어 검증은 사용자 승인 없이는 실행하지 않는다. 승인 후에는 같은 task, episode
 수, pre-roll, 속도 분포를 맞춰 기존 분석 script로 다음 순서로 비교한다.
 
+운용자가 수행할 전체 순서와 중단·합격 기준은
+[teleoperation 안정화 runbook](teleoperation_stabilization_runbook.md)을 따른다.
+
 1. feedback OFF에서 raw와 intent 차이 및 조작 지연 확인
 2. feedback ON + free-space에서 false motion과 HF power 확인
 3. feedback ON + controlled contact에서 접촉 timing과 진동 확인

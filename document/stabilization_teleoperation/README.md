@@ -8,6 +8,7 @@
 
 - [안정화 설계와 전체 pipeline](leader_arm_teleoperation_stabilization.md)
 - [Smooth teleoperation 구현 및 검증](smooth_teleop_implementation.md)
+- [운용자가 수행할 안정화 실행 순서](teleoperation_stabilization_runbook.md)
 
 실제 로봇을 움직이는 teleoperation, force feedback 활성화와 데이터 수집 검증은
 사용자 승인 후 수행한다.
