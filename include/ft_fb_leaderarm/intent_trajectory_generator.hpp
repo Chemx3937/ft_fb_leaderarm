@@ -11,10 +11,8 @@ struct IntentTrajectoryConfig {
   double damping_ratio{1.0};
   double max_linear_velocity_m_s{0.30};
   double max_linear_acceleration_m_s2{1.0};
-  double max_linear_jerk_m_s3{10.0};
   double max_angular_velocity_rad_s{5.235987755982989};
   double max_angular_acceleration_rad_s2{12.566370614359172};
-  double max_angular_jerk_rad_s3{125.66370614359172};
 };
 
 struct IntentTrajectoryState {

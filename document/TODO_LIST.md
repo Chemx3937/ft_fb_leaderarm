@@ -58,7 +58,8 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [ ] 오른팔 tool/payload를 고정하고 `payload_id` 확정
 - [ ] impedance controller 설정 hash 확정
 - [ ] AFT sensor frame과 sensor→TCP transform 실측
-- [ ] 최대 허용 controlled-contact force 결정
+- [x] 최대 허용 controlled-contact force 결정: 목표 `20 N` 이하, hard abort `25 N`
+  (`episode_000~099`의 100개 과거 IL episode 근거, 2026-08-24 승인)
 - [ ] moment 예측/feedback을 사용할 경우 최대 허용 moment 오차 결정
 - [ ] controlled-contact 전에 ground truth 절차와 CO-04 합격 기준 결정
 - [ ] feedback 전에 CONTACT rise time과 최대 torque step 결정

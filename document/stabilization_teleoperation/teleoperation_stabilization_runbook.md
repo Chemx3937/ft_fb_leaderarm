@@ -36,12 +36,13 @@ tracking·접촉 timing·작업 성공률·최대 접촉력이 악화되지 않�
 항목이 완료됐는지 개발자 또는 Codex와 함께 확인해야 한다.
 
 - [x] `smooth_teleop` 브랜치가 `main`과 분리되어 있다.
-- [x] 2차 intent generator와 velocity/acceleration/jerk 제한이 구현되어 있다.
+- [x] 2차 intent generator와 velocity/acceleration 제한이 구현되어 있다.
+- [x] 고정 target에서 intent 위치·회전·속도가 수렴하는 회귀 테스트가 있다.
 - [x] raw/intent/final command CSV logging이 구현되어 있다.
-- [ ] 기존 leader YAML을 기반으로 한 **별도 smooth teleop YAML**이 생성되어 있다.
-- [ ] `smooth_teleop_enable:=false`가 기존 command elapsed/slew 동작까지 정확히
+- [x] 기존 leader YAML 뒤에 로드하는 **별도 smooth teleop YAML overlay**가 생성되어 있다.
+- [x] `smooth_teleop_enable:=false`가 기존 command elapsed/slew 동작까지 정확히
   재현한다.
-- [ ] `contact_observer_msgs` 환경을 source한 target PC에서 전체 build/test가
+- [x] `contact_observer_msgs` 환경을 source한 target PC에서 전체 build/test가
   통과한다.
 
 마지막 세 항목이 완료되기 전에는 정식 A/B 결과를 만들지 않는다. 특히 같은 YAML에서
@@ -126,6 +127,39 @@ export FT_MAX_CONTACT_FORCE_N=REPLACE_WITH_APPROVED_TASK_LIMIT
 명시한다. 이번 smooth OFF/ON 비교에서는 양쪽 모두 같은
 `controller_current_pose_se3`를 사용한다.
 
+### 4.3 2026-08-24 feedback-OFF 확인 A/B 고정 기준
+
+운용자가 다음 기준과 동작을 데이터 취득 전에 승인했다.
+
+- leader 정지 중 command 속도 `> 30 mm/s`가 `0.1 s` 이상 지속: `0회`
+- `3 Hz` 이상 position raw→command power 잔존율: `<= 25%`
+- `10 Hz` 이상 position raw→command power 잔존율: `<= 5%`
+- raw-intent position 차이: p95 `<= 20 mm`, max `<= 30 mm`
+- Smooth ON/OFF 수행시간 차이: `<= 20%`
+- 접촉·비정상 동작: `0회`, 운전자 체감 지연 허용 가능
+
+양쪽 조건은 FAST에서 `5 s` 정지, 약 `30 mm` 왕복, `2 s` 정지, 손목 약 `10 deg`
+왕복, 마지막 `5 s` 정지 후 PAUSE 순서로 실행한다. 이 기준은 feedback-OFF smooth
+확인용이며 feedback 진동 전달의 최종 `FB-03` 기준을 대신하지 않는다.
+
+확인 A/B 결과는 다음과 같다.
+
+| 항목 | Smooth OFF | Smooth ON | 기준 | 결과 |
+|---|---:|---:|---:|---|
+| FAST 시간 | `51.646 s` | `49.084 s` | 차이 `<= 20%` | PASS (`4.96%`) |
+| `3 Hz` 이상 raw→command 잔존율 | `79.688%` | `4.647%` | ON `<= 25%` | PASS |
+| `10 Hz` 이상 raw→command 잔존율 | `72.744%` | `0.188%` | ON `<= 5%` | PASS |
+| 정지 중 `>30 mm/s`가 `>=0.1 s` 지속 | `0회` | `0회` | `0회` | PASS |
+| raw-intent position 차이 p95/max | `0/0 mm` | `2.127/5.139 mm` | `<=20/30 mm` | PASS |
+
+- OFF CSV: `logs/leader_teleop_right_20260824_035338.csv`, SHA-256
+  `07b655c749e0ef6a15311fb57778b8efb65d1cc12674b577c9a293b31817a066`
+- ON CSV: `logs/leader_teleop_right_20260824_035714.csv`, SHA-256
+  `83ee867d8fc4e7fa35d59ced1cb2e4c816ff0c4af01e96ac6ecabf89a8b3aaf6`
+- 운전자 확인: 접촉 없음, Smooth ON 지연 허용 가능
+- 판정 범위: **feedback OFF, 작은 저속 free-space 확인에 한정해 PASS**. 빠른 동작,
+  다양한 궤적, 실제 접촉, feedback ON과 IL episode로 일반화하지 않는다.
+
 ## 5. 2단계 — target PC 배포·빌드·테스트
 
 hardware PC workspace에 실험할 `smooth_teleop` commit을 배포한 뒤 확인한다.
@@ -165,7 +199,7 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_data_collection.launch.py --show-
 합격 조건:
 
 - build와 전체 test가 실패 없이 끝난다.
-- `smooth_teleop_enable`과 `leader_config`가 두 launch에 모두 보인다.
+- `smooth_teleop_enable`, `leader_config`, `smooth_teleop_config`가 두 launch에 모두 보인다.
 - 설치된 package의 smooth YAML 경로와 Git commit ID를 기록했다.
 
 ## 6. 3단계 — robot, AFT, observer 준비
@@ -231,7 +265,9 @@ force feedback 영향을 분리하기 위해 반드시 feedback OFF부터 시작
 한다.
 
 ```bash
-export FT_SMOOTH_CONFIG=/absolute/path/to/smooth_teleop_config.yaml
+export FT_LEADER_CONFIG=/absolute/path/to/single_impedance_leader_damping.yaml
+export FT_SMOOTH_CONFIG=/absolute/path/to/single_impedance_leader_smooth_teleop.yaml
+test -f "${FT_LEADER_CONFIG}"
 test -f "${FT_SMOOTH_CONFIG}"
 ```
 
@@ -239,7 +275,8 @@ test -f "${FT_SMOOTH_CONFIG}"
 
 ```bash
 ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
-  leader_config:="${FT_SMOOTH_CONFIG}" \
+  leader_config:="${FT_LEADER_CONFIG}" \
+  smooth_teleop_config:="${FT_SMOOTH_CONFIG}" \
   model_path:="${FT_MODEL}" \
   zero_set_confirmed:=true \
   zero_set_id:=runtime_smooth_off_01 \
@@ -253,7 +290,8 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
 
 ```bash
 ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
-  leader_config:="${FT_SMOOTH_CONFIG}" \
+  leader_config:="${FT_LEADER_CONFIG}" \
+  smooth_teleop_config:="${FT_SMOOTH_CONFIG}" \
   model_path:="${FT_MODEL}" \
   zero_set_confirmed:=true \
   zero_set_id:=runtime_smooth_on_01 \
@@ -272,6 +310,10 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
 5. 사전에 정한 동일 task를 동일한 시작 자세에서 수행한다.
 6. 이상 움직임이 있으면 `s`로 즉시 PAUSE한다.
 7. 종료 후 CSV와 episode를 조건이 드러나는 새 이름으로 보존한다.
+
+Leader를 정지했는데 follower가 계속 움직이면 정상적인 filter delay로 간주하지 않고
+즉시 `s` 또는 E-stop으로 중단한다. [`FT-20260824-01`](../problem/FT-20260824-01.md)과
+같은 자발 command가 재현되면 Smooth ON을 다시 실행하지 않는다.
 
 A와 B에서 다음을 동일하게 유지한다.
 
@@ -302,12 +344,14 @@ A와 B에서 다음을 동일하게 유지한다.
 | intent는 깨끗하지만 command가 흔들림 | 최종 slew/timing 경로 문제 | command limiter 점검 |
 | command는 깨끗하지만 actual이 흔들림 | follower controller/tracking 문제 | impedance controller 점검 |
 | raw부터 큰 drift/자발 움직임 | gravity/damping 문제 | intent보다 gravity/damping 먼저 조정 |
+| raw는 정지했는데 intent/command가 계속 움직임 | generator 불안정 | 즉시 중단하고 software blocker로 복귀 |
 
 parameter는 한 번에 한 종류만 변경한다.
 
 - 조작 지연이 크면 natural frequency를 올리는 방향을 검토한다.
 - 3 Hz 이상 jitter가 남으면 natural frequency를 낮추는 방향을 검토한다.
-- 순간 acceleration이 크면 acceleration/jerk limit를 낮춘다.
+- 순간 acceleration이 크면 acceleration limit를 낮춘다.
+- jerk limiter는 `FT-20260824-01`의 자발 운동 원인이므로 다시 활성화하지 않는다.
 - 움직임이 지나치게 막히면 어떤 limiter가 지속적으로 활성화되는지 CSV로 확인한다.
 - 좁은 공진 peak가 반복 측정된 경우에만 notch filter를 검토한다.
 
@@ -324,6 +368,186 @@ smooth OFF/ON session 경로
 
 feedback OFF에서 command smoothness와 조작성 기준을 통과하기 전에는 force feedback
 40%로 진행하지 않는다.
+
+### 9.1 일반화 stress 검증
+
+실제 IL 운용을 대표하는 다음 세 고정 sequence를 사용하고 각 sequence를 `3회`
+반복한다. 모든 run은 정지 구간을 앞뒤에 포함하며, 실제 command 속도 분포로
+slow/nominal/fast 조건이 분리됐는지 사후 확인한다.
+
+속도·힘 범위는 기존 IL 데이터
+`/data/logistic_box_contact_observer/episode_000~099`의 100개 episode와 278개 contact
+onset을 기준으로 정했다. 과거 actual TCP 선속도는 p95 `149.77 mm/s`, 최대
+`223.89 mm/s`였고, contact 직전 선속도는 p95 `95.61 mm/s`, 최대 `145.43 mm/s`,
+canonical contact force는 p99 `21.79 N`, 최대 `30.70 N`이었다. 이는 안전 한계의
+증명이 아니라 현재 장비 검증 범위를 정하기 위한 근거다.
+
+| Sequence | 속도 | 궤적 |
+|---|---|---|
+| `G1` | `0~75 mm/s` | 직선 왕복 + 정지 + 단일축 회전 |
+| `G2` | `75~160 mm/s` | 곡선 + translation/rotation 결합 |
+| `G3` | `160~260 mm/s` | 방향 반전 + 급정지 + 다축 결합 |
+
+free-space 검증 선속도 상한은 `260 mm/s`, 각속도 상한은 `60 deg/s`로 둔다.
+sequence 속도 등급은 역사 데이터와 같이 command 선속도 p95로 판정한다. `G1`은
+p95 `<=75 mm/s`이면서 순간 최대가 `160 mm/s` 미만, `G2`는 p95
+`75~160 mm/s`이면서 순간 최대가 `260 mm/s` 이하, `G3`는 p95
+`160~260 mm/s`이면서 모든 sample이 `260 mm/s` 이하여야 한다. follower FK 속도
+분포는 같은 방식으로 별도 기록한다. 속도 p95 window는 의무적인 시작·종료 정지
+구간을 제외한 실제 task 수행 구간으로 고정하고, 마지막 정지는 별도 판정한다.
+기존 command hard cap `300 mm/s`는 유지한다. 먼저 `G1/G2/G3`를 각 1회, 총 3회
+smoke로 실행하고 모두 통과한 경우에만 각 sequence를 2회씩 추가해 최종 총 9회를
+채운다.
+
+2026-08-24 `G1` 첫 시도는 속도 조건이 섞여 **집계에서 제외**했다.
+
+- CSV: `logs/leader_teleop_right_20260824_042247.csv`, SHA-256
+  `a91175b6bafd36a3ee742f6942e67457e8f3c2bca2ffca3f73dfe50b36ff6f28`
+- FAST `35.515 s`, Smooth ON, feedback gain `0`
+- command 선속도 p95/max `74.37/181.38 mm/s`; `75 mm/s` 초과 `1.734 s`,
+  `160 mm/s` 초과 `0.372 s`
+- follower FK 선속도 p95/max `79.17/186.04 mm/s`
+- raw-intent 위치 차이 p95/max `5.904/14.850 mm`, `3/10 Hz` 이상 position
+  power 잔존율 `4.531/0.058%`
+- 마지막 연속 정지는 약 `3.04 s`로 계획한 `5 s`보다 짧음
+- 판정: smoothing 지표는 통과했지만 `G1` 속도·정지 protocol 불충족. 더 느린
+  `G1`을 다시 수행하며 이 run은 빠른 sequence 횟수로도 재사용하지 않는다.
+
+2026-08-24 `G1` 재시도는 첫 왕복의 짧은 정지 후 같은 FAST 안에서 정상 sequence를
+다시 수행했다. 정상 재시도 구간만 판정해 **G1 smoke 1회로 승인**했다.
+
+- CSV: `logs/leader_teleop_right_20260824_043432.csv`, SHA-256
+  `318b014dcc2524f2ba0bf6e9f51a6a51878fa6c1db43773e9c25d03db0f7efa2`
+- 정상 재시도 구간: FAST 상대시간 약 `22~54 s`
+- command 선속도 p95/max `62.58/103.66 mm/s`, follower FK 선속도 p95/max
+  `65.65/95.97 mm/s`
+- raw-intent 위치 차이 p95/max `4.991/8.645 mm`, `3/10 Hz` 이상 전체 FAST
+  position power 잔존율 `3.145/0.063%`
+- 마지막 5초 command 속도 p95/max `4.14/5.53 mm/s`
+- 운전자 확인: 접촉 없음, 이상 움직임 없음
+- 판정: G1 분포·smoothing·최종 정지 PASS. 순간 `75 mm/s` 초과는 재시도 구간
+  `1.198 s`였으며 G2/G3 검증을 대신하지 않는다.
+
+2026-08-24 `G2` 첫 smoke는 **PASS**했다.
+
+- CSV: `logs/leader_teleop_right_20260824_044507.csv`, SHA-256
+  `7ced2ca9c142cd3b71735c85d42ad2bc5870bec22949c0136768f91c8c0456e5`
+- FAST `48.454 s`, Smooth ON, feedback gain `0`
+- command 선속도 p95/max `145.87/234.93 mm/s`, follower FK 선속도 p95/max
+  `137.38/234.32 mm/s`
+- command/follower 각속도 max `34.04/22.92 deg/s`
+- raw-intent 위치 차이 p95/max `11.401/18.966 mm`, `3/10 Hz` 이상 position
+  power 잔존율 `13.415/0.076%`
+- command→follower FK 추정 lag `166 ms`; lag 보정 tracking error p95
+  `8.61 mm` (`G1` 동일 방식 lag `156 ms`)
+- 마지막 5초 command 속도 p95/max `4.87/13.23 mm/s`, follower FK 속도
+  p95/max `2.71/5.13 mm/s`
+- FAST loop gap `>10 ms` 7회, 최대 `61 ms`; G3에서 재확인
+- 운전자 확인: 접촉 없음, 이상 움직임 없음
+- 판정: G2 속도 분포·smoothing·tracking·최종 정지 PASS. loop gap은 다음 단계
+  timing 감시 항목이며 G3에서 증가하거나 체감 이상이 있으면 즉시 중단한다.
+
+2026-08-24 `G3` 첫 smoke는 앞쪽의 잘못 수행한 sequence를 제외하고 정상 수행한
+후반부만 판정해 **PASS**했다.
+
+- CSV: `logs/leader_teleop_right_20260824_045444.csv`, SHA-256
+  `d0a0e6de792d177a5f8a70936771be64b15bec1b7ee167586f9c8c9dc9f0d719`
+- 정상 task 구간: FAST 상대시간 약 `49.4~82.3 s`
+- command 선속도 p95/max `160.84/196.37 mm/s`, follower FK 선속도 p95/max
+  `163.74/199.22 mm/s`
+- command/follower 각속도 max `36.39/17.64 deg/s`
+- raw-intent 위치 차이 p95/max `12.593/15.649 mm`, `3/10 Hz` 이상 task
+  position power 잔존율 `15.635/0.145%`
+- command→follower FK 추정 lag `198 ms`, lag 보정 tracking error p95
+  `11.49 mm`
+- 마지막 5초 command 속도 p95/max `5.60/7.11 mm/s`, follower FK 속도
+  p95/max `7.25/20.45 mm/s`; `30 mm/s` 자발 운동 기준 미발생
+- FAST loop gap `>10 ms` 9회, 최대 `23 ms`; G2 최대 `61 ms`보다 악화되지 않음
+- linear acceleration limit 활성 비율 `1.072%`, raw pose 범위를 벗어난 command
+  overshoot 없음
+- 운전자 확인: 접촉 없음, 이상 움직임 없음
+- 판정: G3 속도 분포·smoothing·tracking·방향 반전·최종 정지 PASS. 앞쪽 오동작
+  구간은 어느 sequence 횟수에도 재사용하지 않는다.
+
+2026-08-24 `G1` 두 번째 반복에서는 운전자가 의도하지 않은 횡이동과 끊기는 듯한
+follower 움직임을 보고했다. 이 run은 **집계에서 제외**하고 추가 stress 반복을
+중단했다. frame 변환 후에도 수직 왕복에 world lateral displacement
+`18.55/14.67 mm`가 있었고, 마지막 정지 중 leader raw부터 횡 drift가 발생했다.
+상세 evidence와 미확정 원인은 [`FT-20260824-02`](../problem/FT-20260824-02.md)를
+따른다. 원인 분리와 재검증 전에는 G1/G2/G3 추가 반복으로 진행하지 않는다.
+
+### 9.2 follower command 차단 leader-only 진단
+
+`FT-20260824-02`의 횡 drift가 follower/controller와 무관하게 leader raw부터 생기는지
+먼저 분리한다. 일반 teleoperation 기본값은 `true`이며, 이 진단에서만 CLI로 follower
+`PoseStamped` 발행을 차단한다.
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/contact_pipeline_ws/install/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+ros2 run ft_fb_leaderarm ft_fb_leader_single_impedance_teleop --ros-args \
+  --params-file "${FT_LEADER_CONFIG}" \
+  --params-file "${FT_SMOOTH_CONFIG}" \
+  -p side:=right \
+  -p feedback_source:="'off'" \
+  -p follower_command_publish_enabled:=false
+```
+
+시작할 때 leader 자동 정렬은 leader를 움직일 수 있다. 터미널의
+`[LEADER ONLY] ... DISABLED`와 status의
+`follower_command_publish_enabled=false`를 확인하기 전에는 `c`를 누르지 않는다.
+follower가 움직이면 다른 publisher/controller 경로가 있다는 뜻이므로 즉시 `s` 또는
+E-stop으로 중단한다. 이 모드에서는 `z`, `r`, `q`를 누르지 않는다.
+
+1. `IDLE`에서 `c → t → SLOW READY → o` 순서로 FAST에 진입한다.
+2. 중력보상이 arm 무게를 완전히 지지하지 못하므로 leader를 끝까지 놓지 않고 5초간
+   정지한다.
+3. 계속 지지한 상태에서 workspace 경계에 닿지 않는 방향으로 수직 `50 mm`를
+   `4초 이상`에 이동하고 3초간 정지한 뒤 같은 경로로 복귀한다.
+4. 5초간 정지한 뒤 `s`, `Ctrl+C` 순서로 종료한다.
+5. CSV의 `follower_command_publish_enabled=0`, workspace clip, leader raw 횡이동을
+   함께 판정한다.
+
+leader에서 손을 놓거나 지지력을 의도적으로 줄이는 free-drift 시험은 하지 않는다.
+leader가 급격히 처지거나 지그재그·걸림이 느껴지면 그 자리에서 지지하고 즉시 `s`로
+중단한다.
+
+첫 run에서는 gravity/damping parameter를 바꾸지 않는다. baseline drift가 재현된 뒤에만
+한 종류씩 비교하며, 이 진단을 통과하기 전에는 G1/G2/G3 횟수에 포함하지 않는다.
+
+2026-08-24 첫 leader-only run은 follower command가 전 구간 차단되고 follower가
+정지한 상태에서도 leader의 대각선 지그재그와 걸림이 재현됐다. 두 번째 FAST 중
+workspace `z=200 mm` 상한에 약 `12.2 s` 머물렀으므로 깨끗한 수직 왕복 run으로는
+집계하지 않는다. 정량 evidence는
+[`FT-20260824-02`](../problem/FT-20260824-02.md)를 따른다.
+
+로그에서 FAST scale이 약 10초 후 전 축 `1.0`으로 내려간 것은 정상 설계다.
+CURRENT/SLOW/PAUSE와 `z`는 leader를 버틸 수 있게
+`grav_sync_scale_per_joint`로 보상을 강화하지만, FAST는 조작을 방해하지 않도록
+scale `1.0`과 기존 joint별 `grav_gain`을 사용한다. FAST에 sync scale을 유지하는
+비교는 하지 않는다.
+
+전 조합을 무작정 늘리지 않고 위 covering set을 동일 시작 자세와 workspace에서
+반복한다. 단계는 다음 순서를 바꾸지 않는다.
+
+1. feedback OFF free-space에서 `G1/G2/G3`
+2. 승인 모델 완성 후 observer-only free-space에서 같은 sequence
+3. feedback 40% free-space에서 같은 sequence
+4. 40% controlled contact는 slow부터 시작하고 승인된 힘·속도·방향만 사용
+5. 40% 통과 후 100%에서 대표 subset 재검증
+6. 작은 IL test episode에서 command/actual/joint 기록과 verifier 확인
+
+각 단계에서 raw→intent→command뿐 아니라 follower actual/joint HF, tracking lag/error,
+velocity/acceleration limit 활성 비율, 방향 반전 overshoot, 정지 후 자발 운동을 함께
+판정한다. feedback ON에서는 leader raw 진동이 커져도 intent/command와 follower
+actual/joint로 전달되지 않는지를 별도 transfer metric으로 확인한다.
+
+controlled contact는 접근 속도 `50 mm/s` 이하에서 시작하고 단계 검증 후에도
+`125 mm/s`를 넘지 않는다. 목표 contact force는 `20 N` 이하, hard abort 기준은
+`25 N`이다. contact 방향, onset/release와 진동 전달 합격 기준은 contact 전에
+추가로 고정한다. 하나라도 미확정이면 contact와 feedback gain 승인을 진행하지 않는다.
 
 ## 10. 7단계 — smooth ON에서 force feedback 단계 승인
 
@@ -343,7 +567,8 @@ feedback OFF에서 command smoothness와 조작성 기준을 통과하기 전에
 각 launch에 다음 인자를 명시적으로 추가한다.
 
 ```text
-leader_config:=${FT_SMOOTH_CONFIG}
+leader_config:=${FT_LEADER_CONFIG}
+smooth_teleop_config:=${FT_SMOOTH_CONFIG}
 smooth_teleop_enable:=true
 ```
 

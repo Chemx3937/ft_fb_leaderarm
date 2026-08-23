@@ -7,7 +7,7 @@
 //  - Pinocchio FK로 follower TCP pose 계산 (base_link 기준)
 //  - workspace min/max clipping (원본과 동일)
 //  - raw pose와 causal leader-intent pose를 분리
-//  - 2차 reference generator + velocity/acceleration/jerk limit
+//  - 2차 reference generator + velocity/acceleration limit
 //  - workspace→command base 좌표 변환 (left_base_link / right_base_link)
 //  - 기존 linear/angular slew limit를 최종 safety backstop으로 유지
 //  - 위치 단위 mm로 publish (원본과 동일, Doosan controller 기대값)
@@ -100,9 +100,11 @@ void LeaderTeleopNode::publish_impedance_pose(const Vec6& follower_joint_rad) {
       !impedance_last_pos_.has_value() || !impedance_last_R_.has_value()) {
     elapsed = dt_;
   }
-  // A delayed control callback must not create a large catch-up command step.
-  // At most two nominal periods are credited to the command limiters.
-  const double command_elapsed = std::min(elapsed, 2.0 * dt_);
+  // Smooth ON prevents a delayed callback from creating a large catch-up step.
+  // Smooth OFF preserves the pre-stabilization slew timing for a valid A/B baseline.
+  const double command_elapsed = intent_generator_enabled_
+    ? std::min(elapsed, 2.0 * dt_)
+    : std::clamp(elapsed, dt_, 0.1);
 
   auto to_command_frame = [this](const Vec3& ws_pos, const Mat3& ws_R) {
     if (!has_workspace_M_command_) {
@@ -242,8 +244,10 @@ void LeaderTeleopNode::publish_impedance_pose(const Vec6& follower_joint_rad) {
   msg.pose.orientation.z = quat[2];
   msg.pose.orientation.w = quat[3];
 
-  pub_impedance_->publish(msg);
-  if (state_ == TeleopState::FAST) ++teleop_cmd_count_;
+  if (follower_command_publish_enabled_) {
+    pub_impedance_->publish(msg);
+    if (state_ == TeleopState::FAST) ++teleop_cmd_count_;
+  }
 }
 
 }  // namespace teleop_cpp

@@ -542,6 +542,8 @@ void LeaderTeleopNode::publish_status() {
       << ",\"feedback_gain_scale_contract\":" << feedback_gain_scale_contract_
       << ",\"smooth_teleop_enabled\":"
       << (intent_generator_enabled_ ? "true" : "false")
+      << ",\"follower_command_publish_enabled\":"
+      << (follower_command_publish_enabled_ ? "true" : "false")
       << ",\"contact\":" << json_string(contact_status)
       << ",\"contact_state\":" << contact_state
       << ",\"observer_ready\":" << (observer_ready ? "true" : "false")

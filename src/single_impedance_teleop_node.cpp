@@ -204,6 +204,7 @@ void LeaderTeleopNode::declare_and_load_params() {
 
   p("left_impedance_topic", std::string("/left_dsr_controller/task_space_command"));
   p("right_impedance_topic", std::string("/right_dsr_controller/task_space_command"));
+  p("follower_command_publish_enabled", true);
   p("impedance_base_frame", std::string("base_link"));
   p("left_command_base_frame", std::string("left_base_link"));
   p("right_command_base_frame", std::string("right_base_link"));
@@ -216,10 +217,8 @@ void LeaderTeleopNode::declare_and_load_params() {
   p("intent_damping_ratio", 1.0);
   p("intent_max_linear_velocity_mm_s", 300.0);
   p("intent_max_linear_acceleration_mm_s2", 1000.0);
-  p("intent_max_linear_jerk_mm_s3", 10000.0);
   p("intent_max_angular_velocity_deg_s", 300.0);
   p("intent_max_angular_acceleration_deg_s2", 720.0);
-  p("intent_max_angular_jerk_deg_s3", 7200.0);
 
   p("left_workspace_min", std::vector<double>{0.00, -0.25, -0.50});
   p("left_workspace_max", std::vector<double>{0.50, 0.40, 0.40});
@@ -429,6 +428,13 @@ void LeaderTeleopNode::build_arm_config() {
     impedance_topic_ = get_parameter("right_impedance_topic").as_string();
     impedance_base_frame_ = get_parameter("right_command_base_frame").as_string();
   }
+  follower_command_publish_enabled_ =
+    get_parameter("follower_command_publish_enabled").as_bool();
+  if (!follower_command_publish_enabled_) {
+    RCLCPP_WARN(get_logger(),
+      "[LEADER ONLY] follower PoseStamped publishing is DISABLED; "
+      "raw/intent computation and CSV logging remain active");
+  }
   impedance_workspace_frame_ = get_parameter("impedance_base_frame").as_string();
 
   double lin_mm = get_parameter("impedance_linear_speed_mm_s").as_double();
@@ -450,14 +456,10 @@ void LeaderTeleopNode::build_arm_config() {
     get_parameter("intent_max_linear_velocity_mm_s").as_double() / 1000.0;
   intent_config.max_linear_acceleration_m_s2 =
     get_parameter("intent_max_linear_acceleration_mm_s2").as_double() / 1000.0;
-  intent_config.max_linear_jerk_m_s3 =
-    get_parameter("intent_max_linear_jerk_mm_s3").as_double() / 1000.0;
   intent_config.max_angular_velocity_rad_s =
     get_parameter("intent_max_angular_velocity_deg_s").as_double() * M_PI / 180.0;
   intent_config.max_angular_acceleration_rad_s2 =
     get_parameter("intent_max_angular_acceleration_deg_s2").as_double() * M_PI / 180.0;
-  intent_config.max_angular_jerk_rad_s3 =
-    get_parameter("intent_max_angular_jerk_deg_s3").as_double() * M_PI / 180.0;
   if (intent_config.max_linear_velocity_m_s >
         impedance_lin_speed_m_s_ + 1.0e-12 ||
       intent_config.max_angular_velocity_rad_s >
@@ -469,14 +471,13 @@ void LeaderTeleopNode::build_arm_config() {
   intent_generator_enabled_ = intent_config.enabled;
   RCLCPP_INFO(get_logger(),
     "[INTENT] %s | fn linear/angular %.2f/%.2f Hz | zeta %.2f | "
-    "v/a/j %.0f/%.0f/%.0f mm units",
+    "v/a %.0f/%.0f mm units",
     intent_generator_enabled_ ? "enabled" : "disabled",
     intent_config.linear_natural_frequency_hz,
     intent_config.angular_natural_frequency_hz,
     intent_config.damping_ratio,
     intent_config.max_linear_velocity_m_s * 1000.0,
-    intent_config.max_linear_acceleration_m_s2 * 1000.0,
-    intent_config.max_linear_jerk_m_s3 * 1000.0);
+    intent_config.max_linear_acceleration_m_s2 * 1000.0);
 
   auto ws_min = get_parameter(side + "_workspace_min").as_double_array();
   auto ws_max = get_parameter(side + "_workspace_max").as_double_array();
@@ -2476,6 +2477,8 @@ void LeaderTeleopNode::hz_log_if_due() {
       block << std::setprecision(1)
             << "  gravity : " << (runtime_gravity_enabled() ? "ON" : "OFF")
             << ", side " << arm_.side << "\n"
+            << "  follower command: "
+            << (follower_command_publish_enabled_ ? "ENABLED" : "DISABLED") << "\n"
             << "  scale   : " << format_joint_scale(grav_scale_) << "\n"
             << log_separator() << "\n"
             << "  leader  : " << leader_deg << "\n"
@@ -2582,6 +2585,7 @@ void LeaderTeleopNode::init_csv_log() {
   }
 
   csv_file_ << "t_s,dt_ms,hz_inst,state,feedback_gain_scale_contract,smooth_teleop_enabled,"
+               "follower_command_publish_enabled,"
                "grav_scale_j1,grav_scale_j2,grav_scale_j3,grav_scale_j4,grav_scale_j5,grav_scale_j6,"
                "leader_j1_deg,leader_j2_deg,leader_j3_deg,leader_j4_deg,leader_j5_deg,leader_j6_deg,"
                "follower_j1_deg,follower_j2_deg,follower_j3_deg,follower_j4_deg,follower_j5_deg,follower_j6_deg,"
@@ -2676,7 +2680,8 @@ void LeaderTeleopNode::csv_log_row() {
   csv_file_ << std::fixed << std::setprecision(4)
             << t << ',' << dt_ms << ',' << hz_inst << ','
             << state_name(state_) << ',' << feedback_gain_scale_contract_
-            << ',' << (intent_generator_enabled_ ? 1 : 0);
+            << ',' << (intent_generator_enabled_ ? 1 : 0)
+            << ',' << (follower_command_publish_enabled_ ? 1 : 0);
   for (int i = 0; i < 6; ++i) csv_file_ << ',' << grav_scale_[i];
   for (int i = 0; i < 6; ++i) csv_file_ << ',' << (q_leader_[i] * 180.0 / M_PI);
   for (int i = 0; i < 6; ++i) {

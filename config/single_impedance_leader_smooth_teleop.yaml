@@ -1,0 +1,11 @@
+leader_teleop_node:
+  ros__parameters:
+    # Smooth teleoperation A/B tuning overlay. Load after the base leader config.
+    intent_generator_enabled: true
+    intent_linear_natural_frequency_hz: 4.0
+    intent_angular_natural_frequency_hz: 4.0
+    intent_damping_ratio: 1.0
+    intent_max_linear_velocity_mm_s: 300.0
+    intent_max_linear_acceleration_mm_s2: 1000.0
+    intent_max_angular_velocity_deg_s: 300.0
+    intent_max_angular_acceleration_deg_s2: 720.0

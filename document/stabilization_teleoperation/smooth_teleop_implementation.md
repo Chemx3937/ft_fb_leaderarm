@@ -27,7 +27,7 @@
 | canonical contact hysteresis/gain ramp | observer/leader에 구현됨 | 중복 classifier 추가 안 함 |
 | narrow-band notch | 공진 peak 근거 없음 | 미적용 |
 | 2차 intent generator | 없음 | 추가 |
-| command acceleration/jerk limit | 없음 | 추가 |
+| command acceleration limit | 없음 | 추가 |
 | raw/intent/final command logging | 없음 | 추가 |
 | clean expert action | raw 기반 publish | 최종 intent command topic으로 전환 |
 
@@ -40,7 +40,7 @@ leader joint raw
   -> follower joint mapping / joint clip
   -> follower FK / workspace clip
   -> 2nd-order intent reference generator
-  -> velocity / acceleration / jerk limit
+  -> velocity / acceleration limit
   -> existing final linear/angular slew safety limit
   -> /right_dsr_controller/task_space_command
 ```
@@ -54,7 +54,8 @@ leader joint raw
 - `include/ft_fb_leaderarm/intent_trajectory_generator.hpp`
 - `src/intent_trajectory_generator.cpp`
 - `src/single_impedance_pose_publisher.cpp`
-- `config/single_impedance_leader_damping.yaml`
+- `config/single_impedance_leader_damping.yaml` (기존 leader/feedback 설정)
+- `config/single_impedance_leader_smooth_teleop.yaml` (smooth tuning overlay)
 
 ## 시작 parameter
 
@@ -65,17 +66,22 @@ leader joint raw
 | `intent_damping_ratio` | `1.0` | critical damping |
 | `intent_max_linear_velocity_mm_s` | `300` | 기존 최종 속도 제한과 동일 |
 | `intent_max_linear_acceleration_mm_s2` | `1000` | command acceleration 제한 |
-| `intent_max_linear_jerk_mm_s3` | `10000` | command acceleration step 제한 |
 | `intent_max_angular_velocity_deg_s` | `300` | 기존 최종 각속도 제한과 동일 |
 | `intent_max_angular_acceleration_deg_s2` | `720` | orientation acceleration 제한 |
-| `intent_max_angular_jerk_deg_s3` | `7200` | orientation acceleration step 제한 |
 
 이 값은 500 Hz software 시작값이다. 실제 task timing과 contact를 보존하는 최종값은
 사용자 승인 아래 동일 task A/B evidence로 결정한다. 특정 좁은 공진 peak는 현재
 report에서 확인되지 않았으므로 notch filter는 추가하지 않았다.
 
-통합 launch의 `smooth_teleop_enable:=true|false`로 같은 config에서 A/B를 전환할 수
-있다. 기본값은 `true`다.
+통합 launch는 기존 leader config 다음에 별도 smooth tuning overlay를 로드한다.
+`smooth_teleop_enable:=true|false`는 마지막 override이므로 동일한 두 YAML에서 A/B를
+전환하며, `false`일 때는 안정화 전 command elapsed/slew 규칙을 재현한다. 기본값은
+`true`다.
+
+2026-08-24 첫 Smooth ON pilot에서 jerk-limited acceleration이 고정 target에서도
+limit cycle을 만들어 follower 자발 운동을 발생시켰다. 따라서 jerk limiter는 제거했고
+velocity/acceleration limit과 최종 slew limit만 유지한다. 상세 evidence는
+[`FT-20260824-01`](../problem/FT-20260824-01.md)에 기록했다.
 
 ## Logging 계약
 
@@ -95,7 +101,8 @@ leader teleoperation CSV에 다음 세 신호를 함께 저장한다.
 - 첫 sample에서 command jump 없이 초기화
 - 0.5 Hz 의도 동작 amplitude를 90% 이상 유지
 - 10 Hz artifact amplitude를 raw의 20% 미만으로 감쇠
-- 설정된 linear/angular velocity, acceleration, jerk 제한 준수
+- 설정된 linear/angular velocity와 acceleration 제한 준수
+- 고정된 위치·회전 target에서 intent 위치와 속도가 수렴
 - 회전 출력의 SO(3) 유효성 유지
 - 고정 workspace→command frame 변환에 대한 출력/속도 불변성
 

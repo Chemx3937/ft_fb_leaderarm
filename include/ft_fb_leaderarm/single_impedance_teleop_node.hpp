@@ -575,6 +575,7 @@ private:
   DiagnosticsConfig diagnostics_config_;
   std::string feedback_source_{"contact_observer"};
   double feedback_gain_scale_contract_{0.0};
+  bool follower_command_publish_enabled_{true};
   Vec6 last_tau_grav_{Vec6::Zero()};
   Vec6 last_tau_cmd_{Vec6::Zero()};
   Vec6 last_follower_target_{Vec6::Zero()};

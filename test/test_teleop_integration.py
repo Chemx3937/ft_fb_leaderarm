@@ -57,27 +57,32 @@ def test_fast_teleop_publishes_limited_leader_intent_not_raw_fk():
     config = yaml.safe_load(
         (PACKAGE_ROOT / "config/single_impedance_leader_damping.yaml").read_text()
     )["leader_teleop_node"]["ros__parameters"]
-    assert config["intent_generator_enabled"] is True
-    assert config["intent_linear_natural_frequency_hz"] > 0.0
-    assert config["intent_angular_natural_frequency_hz"] > 0.0
-    assert config["intent_damping_ratio"] >= 1.0
+    smooth = yaml.safe_load(
+        (
+            PACKAGE_ROOT
+            / "config/single_impedance_leader_smooth_teleop.yaml"
+        ).read_text()
+    )["leader_teleop_node"]["ros__parameters"]
+    assert smooth["intent_generator_enabled"] is True
+    assert smooth["intent_linear_natural_frequency_hz"] > 0.0
+    assert smooth["intent_angular_natural_frequency_hz"] > 0.0
+    assert smooth["intent_damping_ratio"] >= 1.0
     assert (
         0.0
-        < config["intent_max_linear_velocity_mm_s"]
+        < smooth["intent_max_linear_velocity_mm_s"]
         <= config["impedance_linear_speed_mm_s"]
     )
     assert (
         0.0
-        < config["intent_max_angular_velocity_deg_s"]
+        < smooth["intent_max_angular_velocity_deg_s"]
         <= config["impedance_angular_speed_deg_s"]
     )
     for key in (
         "intent_max_linear_acceleration_mm_s2",
-        "intent_max_linear_jerk_mm_s3",
         "intent_max_angular_acceleration_deg_s2",
-        "intent_max_angular_jerk_deg_s3",
     ):
-        assert config[key] > 0.0
+        assert smooth[key] > 0.0
+    assert not any("jerk" in key for key in smooth)
 
     source = (
         PACKAGE_ROOT / "src/single_impedance_pose_publisher.cpp"
@@ -87,7 +92,41 @@ def test_fast_teleop_publishes_limited_leader_intent_not_raw_fk():
     assert update_index < publish_index
     assert "const pinocchio::SE3 intent_command" in source
     assert "Vec3 command_pos = intent_command.translation()" in source
-    assert "2.0 * dt_" in source
+    assert "? std::min(elapsed, 2.0 * dt_)" in source
+    assert ": std::clamp(elapsed, dt_, 0.1)" in source
+
+
+def test_leader_only_diagnostic_disables_only_follower_publish():
+    config = yaml.safe_load(
+        (PACKAGE_ROOT / "config/single_impedance_leader_damping.yaml").read_text()
+    )["leader_teleop_node"]["ros__parameters"]
+    assert config["follower_command_publish_enabled"] is True
+
+    node = (PACKAGE_ROOT / "src/single_impedance_teleop_node.cpp").read_text()
+    pose = (PACKAGE_ROOT / "src/single_impedance_pose_publisher.cpp").read_text()
+    keyboard = (PACKAGE_ROOT / "src/single_impedance_keyboard_fsm.cpp").read_text()
+    assert 'p("follower_command_publish_enabled", true);' in node
+    assert 'get_parameter("follower_command_publish_enabled").as_bool()' in node
+    assert (
+        "if (follower_command_publish_enabled_) {\n"
+        "    pub_impedance_->publish(msg);"
+    ) in pose
+    assert pose.count("pub_impedance_->publish(msg)") == 1
+    assert r'\"follower_command_publish_enabled\":' in keyboard
+    assert '"follower_command_publish_enabled,"' in node
+
+
+def test_fast_uses_joint_gravity_gain_with_fixed_unit_scale():
+    config = yaml.safe_load(
+        (PACKAGE_ROOT / "config/single_impedance_leader_damping.yaml").read_text()
+    )["leader_teleop_node"]["ros__parameters"]
+    assert len(config["grav_gain"]) == 6
+    assert "grav_fast_scale_per_joint" not in config
+
+    node = (PACKAGE_ROOT / "src/single_impedance_teleop_node.cpp").read_text()
+    keyboard = (PACKAGE_ROOT / "src/single_impedance_keyboard_fsm.cpp").read_text()
+    assert "grav_fast_scale_per_joint" not in node
+    assert "grav_scale_target_ = Vec6::Ones();" in keyboard
 
 
 def test_integrated_launch_uses_only_local_teleop_executable():
@@ -102,6 +141,8 @@ def test_integrated_launch_uses_only_local_teleop_executable():
     assert '"feedback_source": "off"' not in launch
     assert "scaled_leader_overrides" in launch
     assert '"intent_generator_enabled": smooth_teleop_enabled' in launch
+    assert "parameters=[leader_config, smooth_teleop_config, leader_overrides]" in launch
+    assert 'DeclareLaunchArgument(\n            "smooth_teleop_config"' in launch
     assert 'DeclareLaunchArgument("smooth_teleop_enable", default_value="true")' in launch
     assert 'default_value="0.40"' in launch
     assert "0.20, 0.40, 0.80" not in launch
@@ -259,6 +300,7 @@ def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
     assert "ft_feedback_leader_teleop.launch.py" in source
     assert '"--model-sha256", model_hash' in source
     assert '"--feedback-gain-scale-contract", str(stage)' in source
+    assert '"leader_config", "smooth_teleop_config", "model_path"' in source
     assert '"leader_stale_timeout", "smooth_teleop_enable"' in source
     assert (
         'DeclareLaunchArgument("require_output_mount", default_value="true")'

@@ -29,6 +29,9 @@ def _as_bool(name, value):
 def _setup(context, ft_share, observer_launch):
     model_path = LaunchConfiguration("model_path").perform(context)
     leader_config = LaunchConfiguration("leader_config").perform(context)
+    smooth_teleop_config = LaunchConfiguration("smooth_teleop_config").perform(
+        context
+    )
     feedback_enabled = _as_bool(
         "learned_feedback_enable",
         LaunchConfiguration("learned_feedback_enable").perform(context),
@@ -120,7 +123,7 @@ def _setup(context, ft_share, observer_launch):
             name="leader_teleop_node",
             output="screen",
             emulate_tty=True,
-            parameters=[leader_config, leader_overrides],
+            parameters=[leader_config, smooth_teleop_config, leader_overrides],
         ),
     ]
 
@@ -135,6 +138,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "leader_config",
             default_value=str(ft_share / "config/single_impedance_leader_damping.yaml"),
+        ),
+        DeclareLaunchArgument(
+            "smooth_teleop_config",
+            default_value=str(
+                ft_share / "config/single_impedance_leader_smooth_teleop.yaml"
+            ),
         ),
         DeclareLaunchArgument("model_path"),
         DeclareLaunchArgument("zero_set_confirmed", default_value="false"),

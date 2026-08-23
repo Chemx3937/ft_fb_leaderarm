@@ -46,14 +46,10 @@ void IntentTrajectoryGenerator::configure(
   require_nonnegative_finite(
     config.max_linear_acceleration_m_s2, "max_linear_acceleration_m_s2");
   require_nonnegative_finite(
-    config.max_linear_jerk_m_s3, "max_linear_jerk_m_s3");
-  require_nonnegative_finite(
     config.max_angular_velocity_rad_s, "max_angular_velocity_rad_s");
   require_nonnegative_finite(
     config.max_angular_acceleration_rad_s2,
     "max_angular_acceleration_rad_s2");
-  require_nonnegative_finite(
-    config.max_angular_jerk_rad_s3, "max_angular_jerk_rad_s3");
   config_ = config;
 }
 
@@ -119,13 +115,6 @@ void IntentTrajectoryGenerator::integrate_once(
     wn_linear * wn_linear * (raw_position_m - state_.position_m) -
     2.0 * config_.damping_ratio * wn_linear *
       state_.linear_velocity_m_s;
-  if (config_.max_linear_jerk_m_s3 > 0.0) {
-    const Eigen::Vector3d acceleration_delta = limit_norm(
-      desired_linear_acceleration - state_.linear_acceleration_m_s2,
-      config_.max_linear_jerk_m_s3 * dt_s);
-    desired_linear_acceleration =
-      state_.linear_acceleration_m_s2 + acceleration_delta;
-  }
   state_.linear_acceleration_m_s2 = limit_norm(
     desired_linear_acceleration, config_.max_linear_acceleration_m_s2);
   state_.linear_velocity_m_s = limit_norm(
@@ -143,13 +132,6 @@ void IntentTrajectoryGenerator::integrate_once(
     wn_angular * wn_angular * rotation_error -
     2.0 * config_.damping_ratio * wn_angular *
       state_.angular_velocity_rad_s;
-  if (config_.max_angular_jerk_rad_s3 > 0.0) {
-    const Eigen::Vector3d acceleration_delta = limit_norm(
-      desired_angular_acceleration - state_.angular_acceleration_rad_s2,
-      config_.max_angular_jerk_rad_s3 * dt_s);
-    desired_angular_acceleration =
-      state_.angular_acceleration_rad_s2 + acceleration_delta;
-  }
   state_.angular_acceleration_rad_s2 = limit_norm(
     desired_angular_acceleration,
     config_.max_angular_acceleration_rad_s2);

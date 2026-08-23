@@ -119,7 +119,7 @@ def _setup(context):
     teleop_arguments = {
         name: LaunchConfiguration(name)
         for name in (
-            "observer_config", "leader_config", "model_path",
+            "observer_config", "leader_config", "smooth_teleop_config", "model_path",
             "zero_set_confirmed", "zero_set_id", "payload_id",
             "controller_config_hash", "learned_feedback_enable",
             "feedback_gain_scale", "feedback_authorization",
@@ -169,6 +169,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "leader_config",
             default_value=str(share / "config/single_impedance_leader_damping.yaml"),
+        ),
+        DeclareLaunchArgument(
+            "smooth_teleop_config",
+            default_value=str(
+                share / "config/single_impedance_leader_smooth_teleop.yaml"
+            ),
         ),
         DeclareLaunchArgument("zero_set_confirmed", default_value="false"),
         DeclareLaunchArgument("zero_set_id", default_value=""),

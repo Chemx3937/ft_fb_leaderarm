@@ -1,5 +1,6 @@
 #include "ft_fb_leaderarm/intent_trajectory_generator.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <vector>
@@ -50,7 +51,6 @@ TEST(IntentTrajectoryGenerator, AttenuatesHighFrequencyWhileKeepingSlowIntent) {
   config.damping_ratio = 1.0;
   config.max_linear_velocity_m_s = 0.0;
   config.max_linear_acceleration_m_s2 = 0.0;
-  config.max_linear_jerk_m_s3 = 0.0;
   IntentTrajectoryGenerator generator(config);
 
   constexpr double sample_hz = 500.0;
@@ -78,20 +78,16 @@ TEST(IntentTrajectoryGenerator, AttenuatesHighFrequencyWhileKeepingSlowIntent) {
   EXPECT_LT(intent_high / raw_high, 0.20);
 }
 
-TEST(IntentTrajectoryGenerator, EnforcesVelocityAccelerationAndJerkLimits) {
+TEST(IntentTrajectoryGenerator, EnforcesVelocityAndAccelerationLimits) {
   IntentTrajectoryConfig config;
   config.max_linear_velocity_m_s = 0.10;
   config.max_linear_acceleration_m_s2 = 0.20;
-  config.max_linear_jerk_m_s3 = 0.50;
   config.max_angular_velocity_rad_s = 0.30;
   config.max_angular_acceleration_rad_s2 = 0.60;
-  config.max_angular_jerk_rad_s3 = 1.50;
   IntentTrajectoryGenerator generator(config);
   generator.reset(Eigen::Vector3d::Zero(), Eigen::Matrix3d::Identity());
 
   constexpr double dt = 0.002;
-  Eigen::Vector3d previous_linear_acceleration = Eigen::Vector3d::Zero();
-  Eigen::Vector3d previous_angular_acceleration = Eigen::Vector3d::Zero();
   const Eigen::Matrix3d target_rotation =
     Eigen::AngleAxisd(kPi / 2.0, Eigen::Vector3d::UnitZ()).toRotationMatrix();
   for (int i = 0; i < 2000; ++i) {
@@ -101,20 +97,41 @@ TEST(IntentTrajectoryGenerator, EnforcesVelocityAccelerationAndJerkLimits) {
     EXPECT_LE(state.linear_acceleration_m_s2.norm(), 0.20 + 1.0e-12);
     EXPECT_LE(state.angular_velocity_rad_s.norm(), 0.30 + 1.0e-12);
     EXPECT_LE(state.angular_acceleration_rad_s2.norm(), 0.60 + 1.0e-12);
-    EXPECT_LE(
-      (state.linear_acceleration_m_s2 - previous_linear_acceleration).norm(),
-      0.50 * dt + 1.0e-12);
-    EXPECT_LE(
-      (state.angular_acceleration_rad_s2 - previous_angular_acceleration).norm(),
-      1.50 * dt + 1.0e-12);
     EXPECT_NEAR(
       (state.rotation.transpose() * state.rotation -
        Eigen::Matrix3d::Identity()).norm(),
       0.0, 1.0e-10);
     EXPECT_NEAR(state.rotation.determinant(), 1.0, 1.0e-10);
-    previous_linear_acceleration = state.linear_acceleration_m_s2;
-    previous_angular_acceleration = state.angular_acceleration_rad_s2;
   }
+}
+
+TEST(IntentTrajectoryGenerator, SettlesWithoutSelfMotionOnAStationaryTarget) {
+  IntentTrajectoryGenerator generator;
+  generator.reset(Eigen::Vector3d::Zero(), Eigen::Matrix3d::Identity());
+  const Eigen::Vector3d target_position(0.05, -0.02, 0.03);
+  const Eigen::Matrix3d target_rotation =
+    Eigen::AngleAxisd(0.5, Eigen::Vector3d::UnitY()).toRotationMatrix();
+
+  constexpr double dt = 0.002;
+  double late_linear_speed = 0.0;
+  double late_angular_speed = 0.0;
+  for (int i = 0; i < 5000; ++i) {
+    const auto& state = generator.update(
+      target_position, target_rotation, dt);
+    if (i >= 4000) {
+      late_linear_speed = std::max(
+        late_linear_speed, state.linear_velocity_m_s.norm());
+      late_angular_speed = std::max(
+        late_angular_speed, state.angular_velocity_rad_s.norm());
+    }
+  }
+
+  const auto& state = generator.state();
+  EXPECT_LT((state.position_m - target_position).norm(), 1.0e-4);
+  EXPECT_LT(Eigen::AngleAxisd(
+    state.rotation.transpose() * target_rotation).angle(), 1.0e-4);
+  EXPECT_LT(late_linear_speed, 1.0e-3);
+  EXPECT_LT(late_angular_speed, 1.0e-3);
 }
 
 TEST(IntentTrajectoryGenerator, IsInvariantToFixedCommandFrameTransform) {
