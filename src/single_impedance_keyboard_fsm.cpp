@@ -198,14 +198,14 @@ void LeaderTeleopNode::handle_keyboard() {
         RCLCPP_WARN(get_logger(), "[KEY] 'g' is only active in FAST.");
         break;
       }
-      const bool off = arm_.grav_gain.cwiseAbs().maxCoeff() <= 1e-12;
-      arm_.grav_gain = off ? grav_gain_base_ : Vec6::Zero();
-      RCLCPP_INFO(get_logger(),
-        "[GAIN] grav_gain %s -> [%.3f,%.3f,%.3f,%.3f,%.3f,%.3f] | runtime=%s",
-        off ? "RESTORE" : "ZERO",
-        arm_.grav_gain[0], arm_.grav_gain[1], arm_.grav_gain[2],
-        arm_.grav_gain[3], arm_.grav_gain[4], arm_.grav_gain[5],
-        runtime_gravity_enabled() ? "ON" : "OFF");
+      const bool restore = grav_scale_target_.cwiseAbs().maxCoeff() <= 1e-12;
+      grav_scale_target_ = restore ? Vec6::Ones() : Vec6::Zero();
+      RCLCPP_WARN(get_logger(),
+        "[GRAVITY] ramp target %s | current=%s target=%s | "
+        "support leader; PAUSE restores sync compensation",
+        restore ? "RESTORE" : "OFF",
+        format_joint_scale(grav_scale_).c_str(),
+        format_joint_scale(grav_scale_target_).c_str());
       break;
     }
 

@@ -303,7 +303,6 @@ private:
 
   // Gravity comp
   bool use_gravity_comp_{true};
-  Vec6 grav_gain_base_{Vec6::Zero()};
   Vec6 grav_scale_{Vec6::Zero()};
   Vec6 grav_scale_target_{Vec6::Zero()};
   Vec6 grav_sync_scale_{Vec6::Constant(4.5)};

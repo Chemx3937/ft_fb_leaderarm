@@ -120,13 +120,30 @@ def test_fast_uses_joint_gravity_gain_with_fixed_unit_scale():
     config = yaml.safe_load(
         (PACKAGE_ROOT / "config/single_impedance_leader_damping.yaml").read_text()
     )["leader_teleop_node"]["ros__parameters"]
-    assert len(config["grav_gain"]) == 6
+    assert config["grav_gain"] == [0.125, 0.125, 0.3375, 0.1, 0.3, 0.1]
+    assert config["grav_sync_scale_per_joint"] == [
+        5.0,
+        6.0,
+        3.3333333333,
+        1.5,
+        2.5,
+        1.0,
+    ]
+    assert [
+        round(gain * scale, 3)
+        for gain, scale in zip(
+            config["grav_gain"], config["grav_sync_scale_per_joint"]
+        )
+    ] == [0.625, 0.75, 1.125, 0.15, 0.75, 0.1]
     assert "grav_fast_scale_per_joint" not in config
 
     node = (PACKAGE_ROOT / "src/single_impedance_teleop_node.cpp").read_text()
     keyboard = (PACKAGE_ROOT / "src/single_impedance_keyboard_fsm.cpp").read_text()
     assert "grav_fast_scale_per_joint" not in node
     assert "grav_scale_target_ = Vec6::Ones();" in keyboard
+    assert "grav_scale_target_ = restore ? Vec6::Ones() : Vec6::Zero();" in keyboard
+    assert "arm_.grav_gain = off ?" not in keyboard
+    assert "PAUSE restores sync compensation" in keyboard
 
 
 def test_integrated_launch_uses_only_local_teleop_executable():

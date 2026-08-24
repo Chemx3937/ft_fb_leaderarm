@@ -398,7 +398,6 @@ void LeaderTeleopNode::build_arm_config() {
 
   use_gravity_comp_ = get_parameter("use_gravity_comp").as_bool();
   arm_.grav_gain = to_vec6(get_parameter("grav_gain").as_double_array());
-  grav_gain_base_ = arm_.grav_gain;
   grav_sync_scale_ = Vec6::Constant(get_parameter("grav_sync_scale").as_double());
   {
     auto per_joint_scale = get_parameter("grav_sync_scale_per_joint").as_double_array();

@@ -147,18 +147,16 @@ leader_teleop_node:
     # 선택지: true=중력보상 사용, false=중력보상 비활성화
     use_gravity_comp: true
 
-    # FAST 상태에서 사용할 joint별 중력보상 gain입니다. 팔이 처지면 올리고 위로 뜨면 낮춥니다.
-    # grav_gain: [0.25, 0.25, 0.6, 0.1, 0.4, 0.1]
-    grav_gain: [0.25, 0.25, 0.45, 0.1, 0.3, 0.1]
+    # FAST 상태에서 사용할 joint별 중력보상 gain입니다. J1/J2/J3는 기존 ON의 50/50/75%입니다.
+    grav_gain: [0.125, 0.125, 0.3375, 0.1, 0.3, 0.1]
 
     # grav_sync_scale_per_joint가 비어 있거나 잘못된 경우 사용할 중력보상 sync scale입니다.
     grav_sync_scale: 2.5
 
-    # CURRENT/SLOW/INIT POSE에서 사용할 joint별 중력보상 scale입니다.
-    # grav_sync_scale_per_joint: [2.5, 3.0, 2.0, 1.5, 2.0, 1.0]
-    grav_sync_scale_per_joint: [2.5, 3.0, 2.5, 1.5, 2.5, 1.0]
+    # CURRENT/SLOW/PAUSE/INIT POSE(z)의 실제 보상력을 기존과 같게 유지하는 joint별 scale입니다.
+    grav_sync_scale_per_joint: [5.0, 6.0, 3.3333333333, 1.5, 2.5, 1.0]
 
-    # FAST 전환 시 중력보상 scale을 목표값으로 ramp하는 시간입니다. 단위는 second입니다.
+    # 중력보상 scale 1차 지수 ramp의 시정수입니다. 수렴 완료 시간이 아닙니다. 단위는 second입니다.
     grav_ramp_sec: 1.5
 
 # Tuning 필요
