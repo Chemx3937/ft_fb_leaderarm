@@ -6,11 +6,16 @@
 contact observer, D405 기반 UMI-compatible recorder와 통합 GUI를 실행하여
 모방학습용 raw episode를 저장하는 현재 절차를 설명한다.
 
-이전 `fb_leaderarm` 문서와 달리 다음 외부 소스 경로는 사용하지 않는다.
+이전 `fb_leaderarm` 문서와 달리 data-collection runtime은 다음 외부 소스 경로를
+사용하지 않는다.
 
 - `~/dualarm_ws/src/fb_leaderarm`
 - `~/chem_UMI-FT_ACP`
 - 외부 `chem_acp_raw_data_collection_lowhz.py`
+
+단, SBC와 일반 PC의 시간 동기화 상태를 확인·복구하는 기존 Chrony helper는
+운용 도구로만 참조한다. Observer, teleoperation, recorder와 GUI의 실행에는
+`fb_leaderarm` source가 필요하지 않다.
 
 현재 package가 소유하는 핵심 파일은 다음과 같다.
 
@@ -68,7 +73,7 @@ Ramp가 적용된 contact force norm이 `25 N`을 넘으면 6축 wrench 전체�
 이 값은 leader에 반사되는 feedback의 상한이다. Follower가 물체에 가하는 실제 힘을
 `25 N` 이하로 제어하거나 충돌을 막는 기능은 아니다.
 
-## 3. 현재 data flow
+### 2.3 현재 data flow
 
 ```text
 SBC
@@ -92,67 +97,255 @@ SBC
 
 동일한 observer, leader teleop 또는 recorder를 다른 launch로 동시에 실행하면 안 된다.
 
-## 4. 매 실행 전 장비 확인
+## 3. SBC에서 실행할 명령
 
-이 절차는 날짜가 바뀌거나 process를 재시작한 뒤 이전 상태를 그대로 가정하지 않는다.
-운영자가 다음 항목을 직접 확인한다.
+각 항목은 **서로 다른 SBC 터미널**에서 실행한다. 모든 터미널은
+`ROS_DOMAIN_ID=7`과 Cyclone DDS를 사용한다.
 
-1. SBC robot driver가 `RUNNING`인지 확인한다.
-2. V2 impedance controller가 `RUNNING`이고 설정이 모델 계약과 같은지 확인한다.
-3. AFT sensor2가 `RUNNING`인지 확인한다.
-4. 마지막 hardware zero-set 이후 AFT, driver 또는 controller 재시작 여부를 확인한다.
-5. Tool, payload와 센서 주변 cable 배치가 모델 조건과 같은지 확인한다.
-6. D405가 연결되어 있는지 확인한다. D435는 기본적으로 연결하지 않는다.
-7. Hand를 저장한다면 hand controller와 오른손 15축 source가 정상인지 확인한다.
-8. E-stop에 바로 접근할 수 있고 follower 작업공간에 사람·장애물이 없는지 확인한다.
-
-### 4.1 SBC read-only 상태 확인
-
-아래 명령은 운영자가 SBC에서 실행한다.
+### 3.1 로봇 드라이버 ON
 
 ```bash
-date -Ins
+source /opt/ros/humble/setup.bash
+source /home/vision/doosan_ws/install/setup.bash
 
-ros2 control list_controllers \
-  -c /dsr01/controller_manager
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
 
-pgrep -af \
-  'dsr_controller2|aft_sensor.launch.py|aft_controller_manager|ros2_control_node'
+export ROBOT_NORMAL_IP=192.168.112.4
+export ROBOT_RT_IP=192.168.137.50
+
+ros2 launch dsr_bringup2 dsr_bringup2_rviz.launch.py \
+  name:=dsr01 \
+  mode:=real \
+  model:=m0609 \
+  host:="${ROBOT_NORMAL_IP}" \
+  port:=12345 \
+  rt_host:="${ROBOT_RT_IP}"
+```
+
+### 3.2 Impedance controller ON
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/doosan_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+
+ros2 launch dsr_realtime_control \
+  impedance_control_vr_dls_f_comp_bae_r_v2.launch.py
+```
+
+### 3.3 Hand EtherCAT slave 통신 확인
+
+```bash
+watch -n 0.1 ethercat slaves
+```
+
+Slave가 정상 상태인지 확인한 뒤 `Ctrl+C`로 확인 화면을 종료한다.
+
+### 3.4 Hand driver ON
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+
+ros2 launch aidin_hand_controllers joint_position_controller.launch.py
+```
+
+### 3.5 AFT sensor driver ON
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+
+ros2 launch aft_can_hardware aft_sensor.launch.py
+```
+
+### 3.6 AFT sensor zero set
+
+AFT driver가 동작하고 센서에 외력이 없는 상태에서 실행한다.
+이 명령은 SBC에서 수행하는 센서 hardware bias 설정이며 rollout script가 자동으로
+launch하지 않는다.
+
+모델 계약상 follower를 fixed zero pose
+`[5.5, 52, 112, 28, -107, -35] deg`에 정지시키고 FT/tool을 완전히 무접촉으로 만든 뒤
+실행한다. 움직이거나 접촉한 상태에서는 실행하지 않는다.
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/doosan_ws/install/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+export CYCLONEDDS_URI=file:///home/vision/cyclonedds_dual_gene.xml
+
+ros2 topic info -v /aft_sensor2/bias_setting
+
+ros2 launch aft_can_hardware aft_zero_set2.launch.py \
+  sensor_name:=aft_sensor2
+```
+
+`/aft_sensor2/bias_setting` subscriber가 1개이고 로그에
+`Hardware bias (tare) requested and acknowledged`와
+`Zero set completed. Exiting after callback.`이 나온 뒤 process가 clean exit해야 한다.
+실행 시각은 새 `zero_set_id`에 반영한다.
+
+### 3.7 AFT sensor 값 확인
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+
+ros2 topic echo /aft_sensor2/wrench --once
+```
+
+출력의 frame이 `aft_sensor2`이고 wrench 값이 갱신되는지 확인한다. `--once` 값 하나만으로
+zero 품질을 판정하지 않는다.
+
+## 4. 일반 PC 실행 전 확인
+
+SBC의 driver/controller/sensor를 [3장](#3-sbc에서-실행할-명령)에 따라 준비한 뒤 진행한다.
+이미 실행 중인 process는 상태가 정상일 때만 유지하고 같은 process를 중복 실행하지 않는다.
+날짜가 바뀌거나 process를 재시작한 뒤 이전 장비 상태나 zero-set을 그대로 가정하지 않는다.
+
+### 4.1 공통 안전·장비 확인
+
+명령을 실행하기 전에 운영자가 다음을 직접 확인한다.
+
+1. E-stop에 바로 접근할 수 있고 follower 작업공간에 사람·장애물이 없다.
+2. Follower와 leader가 정지해 있고 FT sensor/tool이 외부 물체와 접촉하지 않는다.
+3. Tool, payload와 센서 주변 cable 배치가 모델 조건과 같다.
+4. 마지막 hardware zero-set 이후 AFT, driver 또는 controller 재시작 여부를 확인한다.
+5. D405가 연결되어 있다. D435는 기본적으로 연결하지 않는다.
+6. Hand를 저장하므로 hand controller와 오른손 15축 source를 사용할 수 있다.
+
+### 4.2 일반 PC 터미널 1·2: Manus glove 사용 시에만 실행
+
+Arm-only 조작이면 이 단계를 건너뛴다. Manus glove로 robot hand를 조작할 때는 첫 번째
+일반 PC 터미널에서 publisher를 실행한다.
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/manus_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+export CYCLONEDDS_URI=file:///home/vision/cyclonedds_dualarmPC.xml
+
+ros2 run manus_ros2 manus_data_publisher
+```
+
+두 번째 일반 PC 터미널에서 Manus-to-Aidin bridge를 실행한다. 같은 bridge를 두 번 실행해
+hand command publisher를 중복시키지 않는다.
+
+```bash
+source /home/vision/venv_act/bin/activate
+source /opt/ros/humble/setup.bash
+source /home/vision/manus_ws/install/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+export CYCLONEDDS_URI=file:///home/vision/cyclonedds_dualarmPC.xml
+
+cd /home/vision/manus_ws/src/ROS2
+python manus_to_aidin_force.py
+```
+
+별도 일반 PC 확인 터미널에서 publisher를 확인한다.
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/manus_ws/install/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+export CYCLONEDDS_URI=file:///home/vision/cyclonedds_dualarmPC.xml
+
+ros2 topic info /manus_glove_0 --no-daemon
+ros2 topic info /manus_glove_1 --no-daemon
+ros2 topic info /hand_joint_controller/joint_state_command --no-daemon
+```
+
+사용하는 glove topic과 hand command topic에 publisher가 있어야 하며, hand command
+publisher는 1개만 유지한다.
+
+### 4.3 일반 PC: Chrony와 SBC ROS 통신 확인
+
+먼저 현재 시간 동기화 상태만 확인한다.
+
+```bash
+cd /home/vision/dualarm_ws/src/fb_leaderarm
+sudo -v
+./scripts/dualarm_chrony_mode.sh status
+```
+
+SBC `192.168.112.17` source의 `Reach`가 0이 아니고, status JSON의 `valid=true`와
+`GO: dualarm Chrony status is internally consistent`가 나와야 한다. 이 helper는 현재
+저장소의 collection runtime dependency가 아니라 외부 운용 도구다.
+
+SBC를 재부팅했거나 status가 실패한 경우에만 같은 일반 PC 터미널에서 복구한다.
+
+```bash
+./scripts/dualarm_chrony_mode.sh off
+./scripts/dualarm_chrony_mode.sh on
+./scripts/dualarm_chrony_mode.sh status
+```
+
+정상 status라면 `off/on`을 매번 반복하지 않는다. 이어서 일반 PC에서 ROS 입력이 보이는지
+확인한다.
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vision/contact_pipeline_ws/install/setup.bash
+source /home/vision/dualarm_ws/install/setup.bash
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=7
+export ROS_LOCALHOST_ONLY=0
+export CYCLONEDDS_URI=file:///home/vision/cyclonedds_dualarmPC.xml
+
+ros2 topic info /contact_state/observer_input \
+  --no-daemon --verbose
 
 ros2 topic info /aft_sensor2/wrench \
   --no-daemon --verbose
 
-timeout 5s ros2 topic echo \
-  /aft_sensor2/wrench --once
+ros2 topic info /joint_states \
+  --no-daemon --verbose
 ```
 
-정상 조건은 다음과 같다.
+세 topic의 publisher가 각각 1개인지 확인한다. 그다음 이 문서의 순서대로 진행한다.
 
-- `dsr_controller2`: `active`
-- `joint_state_broadcaster`: `active`
-- `/aft_sensor2/wrench`: publisher 1개
-- Wrench 값이 갱신되고 frame이 `aft_sensor2`
+1. [일반 PC 준비](#5-일반-pc-준비)
+2. [새 session 준비](#6-새-session-준비)
+3. [Feedback OFF 통합 launch](#7-feedback-off-통합-launch)
+4. [GUI 조작과 episode 저장](#8-gui-조작과-episode-저장)
 
-### 4.2 Hardware zero-set
-
-Driver, controller 또는 AFT를 재시작했거나 baseline 조건이 달라졌다면 기존 zero-set을
-재사용하지 않는다. Follower를 fixed zero pose
-`[5.5, 52, 112, 28, -107, -35] deg`에 정지시키고 FT/tool을 완전히 무접촉으로 만든
-뒤 운영자가 SBC에서 실행한다.
-
-```bash
-date -Ins
-
-ros2 topic info /aft_sensor2/bias_setting --verbose
-
-ros2 launch aft_can_hardware aft_zero_set2.launch.py \
-  sensor_name:=aft_sensor2
-
-date -Ins
-```
-
-출력의 `Hardware bias (tare) requested and acknowledged`와 clean exit를 확인하고,
-실행 시각을 새 `zero_set_id`에 반영한다. 움직이거나 접촉한 상태에서는 실행하지 않는다.
+일반 PC 통합 launch만 재시작하고 SBC process와 topic이 계속 정상이라면 SBC의 네 process를
+다시 시작하지 않는다. AFT zero-set도 sensor/driver/controller 재시작, 장착 조건 변경 또는
+baseline 이상이 있을 때만 무접촉 fixed pose에서 다시 수행한다.
 
 ## 5. 일반 PC 준비
 
