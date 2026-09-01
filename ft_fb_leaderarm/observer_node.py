@@ -76,9 +76,9 @@ class PhysicalFtContactObserver(Node):
             "zero_force_axis_std_max_n": 0.40,
             "sensor_to_tip_zyx_deg": [0.0, 0.0, 0.0],
             "tip_to_sensor_translation_m": [0.0, 0.0, 0.0],
-            "force_on_n": 2.5,
+            "force_on_n": 3.0,
             "force_off_n": 1.2,
-            "contact_hold_ms": 12.0,
+            "contact_hold_ms": 20.0,
             "free_hold_ms": 20.0,
         }
         for name, value in defaults.items():

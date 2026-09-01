@@ -42,6 +42,7 @@
 | [`FT-20260819-01`](FT-20260819-01.md) | 2026-08-19 | `MODEL` | Phase 4 | final13 선택 모델의 validation/test 최대 force-vector 오차가 1 N 초과 | `OPEN` |
 | [`FT-20260824-01`](FT-20260824-01.md) | 2026-08-24 | `ROBOT` | Smooth A/B | Smooth ON에서 leader 정지 중 intent가 계속 움직여 follower 자발 운동 | `VERIFY` |
 | [`FT-20260824-02`](FT-20260824-02.md) | 2026-08-24 | `ROBOT` | Smooth stress | 수직 G1에서 횡이동과 끊기는 듯한 follower 움직임 체감 | `OPEN` |
+| [`FT-20260901-01`](FT-20260901-01.md) | 2026-09-01 | `MODEL` | Observer-only FREE | 무접촉 logistic-box task에서 residual 기준 초과와 false CONTACT 재현 | `OPEN` |
 
 새 문제는 기존 행을 보존하고 `FT-YYYYMMDD-NN` 형식의 파일과 행으로 추가한다.
 

@@ -8,7 +8,7 @@
 4. 32-sample window를 54차원 multiscale feature로 바꾸고 ridge 모델로 남은 wrench를 예측한다.
 5. `중력 wrench + ridge residual`을 최종 free-space wrench로 사용한다.
 6. 측정 wrench에서 free-space 예측값을 빼 contact wrench를 계산한다.
-7. force residual에 `2.5/1.2 N`, `12/20 ms` Schmitt 판정을 적용한다.
+7. force residual에 `3.0/1.2 N`, `20/20 ms` Schmitt 판정을 적용한다.
 8. prediction/residual과 canonical `ContactObservation`을 발행한다.
 
 ## 현재 선택된 artifact
@@ -169,9 +169,9 @@ W_contact_hat = W_sensor - W_free_hat
 e_force       = norm(W_contact_hat[Fx,Fy,Fz])
 ```
 
-- FREE → CONTACT: `e_force >= 2.5 N`가 `12 ms` 이상 지속
+- FREE → CONTACT: `e_force >= 3.0 N`가 `20 ms` 이상 지속
 - CONTACT → FREE: `e_force <= 1.2 N`가 `20 ms` 이상 지속
-- `1.2 N < e_force < 2.5 N`: 현재 상태 유지
+- `1.2 N < e_force < 3.0 N`: 현재 상태 유지
 - moment는 상태 판정에 사용하지 않음
 
 입력이 invalid/stale/unsynchronized이거나 model/history가 준비되지 않으면 detector

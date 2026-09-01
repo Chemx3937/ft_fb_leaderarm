@@ -13,6 +13,7 @@ from logging.handlers import RotatingFileHandler
 import math
 import os
 from pathlib import Path
+import signal
 import sys
 import threading
 import time
@@ -27,11 +28,11 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPen
+from PyQt5.QtGui import QColor, QKeySequence, QPainter, QPen
 from PyQt5.QtWidgets import (
     QApplication, QComboBox, QDialogButtonBox, QGridLayout, QGroupBox,
     QHBoxLayout, QHeaderView, QLabel, QMainWindow, QMessageBox, QPushButton,
-    QProgressBar, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
+    QProgressBar, QShortcut, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
     QTextEdit, QVBoxLayout, QWidget,
 )
 
@@ -385,6 +386,13 @@ class MainWindow(QMainWindow):
         self.started_monotonic = time.monotonic()
         self.status_labels = {}
         self._build_ui()
+        self.control_shortcuts = []
+        for key in "ctozsrqp012":
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WindowShortcut)
+            shortcut.activated.connect(
+                lambda command=key: self.command(command, "gui_keyboard"))
+            self.control_shortcuts.append(shortcut)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
         self.timer.start(100)
@@ -527,11 +535,6 @@ class MainWindow(QMainWindow):
             self.node.teleop.get("state"), self.node.recorder.get("episode"), message,
             dedup_sec=dedup_sec)
         self.add_event(event)
-
-    def keyPressEvent(self, event):
-        text = event.text().lower()
-        if text in "ctozsrqp012": self.command(text, "gui_keyboard"); event.accept(); return
-        super().keyPressEvent(event)
 
     def refresh(self):
         self.node.poll_futures()
@@ -718,23 +721,26 @@ def main():
     window=MainWindow(node,store); holder["window"]=window; window.show()
     executor = rclpy.executors.MultiThreadedExecutor(num_threads=3)
     executor.add_node(node)
-    spin_stop = threading.Event()
     def spin_ros():
-        while not spin_stop.is_set() and rclpy.ok():
-            try:
-                executor.spin_once(timeout_sec=0.1)
-            except Exception as exc:
-                if not rclpy.ok():
-                    break
+        try:
+            executor.spin()
+        except Exception as exc:
+            if rclpy.ok():
                 on_event("ERROR", "GUI", f"ROS callback 오류: {exc}", dedup_sec=5.0)
     spin_thread = threading.Thread(target=spin_ros, name="collection_gui_ros", daemon=True)
     spin_thread.start()
-    code=app.exec_()
-    spin_stop.set()
-    spin_thread.join(timeout=2.0)
-    executor.shutdown(timeout_sec=2.0)
-    node.destroy_node()
-    rclpy.shutdown()
+    previous_sigint = signal.signal(signal.SIGINT, lambda *_args: app.quit())
+    code = 1
+    try:
+        code = app.exec_()
+    finally:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        executor.shutdown(timeout_sec=2.0)
+        spin_thread.join(timeout=2.0)
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+        signal.signal(signal.SIGINT, previous_sigint)
     return code
 
 

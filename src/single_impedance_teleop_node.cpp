@@ -151,6 +151,7 @@ void LeaderTeleopNode::declare_and_load_params() {
   p("contact_observation_topic", std::string("/contact_observer/right/observation"));
   p("contact_observation_stale_timeout", 0.020);
   p("contact_observation_clock_future_tolerance", 0.002);
+  p("contact_feedback_force_limit_N", 25.0);
   p("follower_joint_stale_timeout", 0.050);
   p("contact_state_topic", std::string("~/contact_state"));
   p("use_pre_contact_phase", false);
@@ -523,6 +524,12 @@ void LeaderTeleopNode::build_arm_config() {
     0.001, get_parameter("contact_observation_stale_timeout").as_double());
   contact_observation_clock_future_tolerance_ = std::max(
     0.0, get_parameter("contact_observation_clock_future_tolerance").as_double());
+  contact_feedback_force_limit_N_ =
+    get_parameter("contact_feedback_force_limit_N").as_double();
+  if (!std::isfinite(contact_feedback_force_limit_N_) ||
+      contact_feedback_force_limit_N_ <= 0.0) {
+    throw std::invalid_argument("contact_feedback_force_limit_N must be finite and > 0");
+  }
   follower_joint_stale_timeout_ = std::max(
     0.001, get_parameter("follower_joint_stale_timeout").as_double());
 

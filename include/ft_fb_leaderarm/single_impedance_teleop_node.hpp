@@ -372,6 +372,7 @@ private:
   bool contact_observation_receive_steady_valid_{false};
   double contact_observation_stale_timeout_{0.020};
   double contact_observation_clock_future_tolerance_{0.002};
+  double contact_feedback_force_limit_N_{25.0};
   uint64_t contact_observation_source_sequence_{0};
   uint64_t contact_observation_prediction_sequence_{0};
   uint8_t contact_observation_state_{0};

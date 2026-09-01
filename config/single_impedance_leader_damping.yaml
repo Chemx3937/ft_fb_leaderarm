@@ -44,6 +44,11 @@ leader_teleop_node:
     contact_observation_stale_timeout: 0.020
     contact_observation_clock_future_tolerance: 0.002
 
+    # 실제 contact residual과 CONTACT 판정은 보존합니다. leader feedback으로
+    # mapping되는 force norm이 이 값을 넘으면 6축 wrench 전체를 같은 비율로
+    # 축소합니다. follower의 실제 접촉력을 제한하는 기능은 아닙니다.
+    contact_feedback_force_limit_N: 25.0
+
     # Canonical wrench를 follower pose에서 leader torque로 mapping할 때 사용하는
     # follower JointState의 local receive-time timeout입니다.
     follower_joint_stale_timeout: 0.050

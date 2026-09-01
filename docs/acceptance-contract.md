@@ -72,9 +72,10 @@ operator-selected 결정은 현재 고정 SHA 쌍에만 적용되는 별도 운�
 유지한다. `FS-06`은 현재 선택 모델의 실제 운용 중 이상을 검출하는 별도 기준이다.
 2026-09-01 동일 zero-set task replay에서 느린 동작은 p95/p99/max
 `0.951/1.181/1.722 N`, 정상 속도는 `1.072/1.336/2.096 N`이었고 false
-CONTACT는 모두 0회였다. 이를 포함하면서 CONTACT ON 경계 `2.5 N`을 넘지 않도록
-운용 한계를 `1.2/1.5/2.5 N`으로 고정했다. 한계 이내여도 CONTACT sample이 한
-번이라도 있으면 `FS-06`은 실패한다.
+CONTACT는 모두 0회였다. 당시 CONTACT ON 경계 `2.5 N`을 넘지 않도록 운용 한계를
+`1.2/1.5/2.5 N`으로 고정했다. 이 residual 이상 감시 기준은 이후 detector 변경과
+독립적으로 유지하며, 한계 이내여도 CONTACT sample이 한 번이라도 있으면 `FS-06`은
+실패한다.
 
 근거 raw artifact는
 `~/.ros/ft_fb_leaderarm/datasets/right_current_model_diag_20260901/` 아래의
@@ -84,6 +85,23 @@ CONTACT는 모두 0회였다. 이를 포함하면서 CONTACT ON 경계 `2.5 N`�
 `fca5ed7529827bb72e551023a94c04f00e871381a12f87f3d77f12e544a20633`)다.
 두 artifact는 같은 `zero_set_id=tare_20260901_current_model_diag01`이므로 정식
 독립 zero-set 모델 평가가 아니라 현재 모델의 운용 한계를 정하는 근거로만 쓴다.
+
+2026-09-01 19:19 KST에 같은 payload/controller와 hardware zero-set을 유지한
+26.505 s 무접촉 logistic-box task에서 p95/p99/max가
+`1.747/2.252/5.606 N`, false CONTACT가 2 event·68 sample이었다. 따라서 위의
+느린/정상 task 근거는 이 실제 task 범위로 일반화할 수 없으며 `FS-06`은
+FAIL 상태다. 운용자는 두 무접촉 task의 offline replay를 근거로 detector 진입
+기준을 임시 변경했지만, 이는 `FS-06` 실패를 해소하거나 `CO-04`를 승인하지 않는다.
+재현 결과와 threshold/hold 후보 비교는
+[`FT-20260901-01`](../document/problem/FT-20260901-01.md)에 기록했다.
+
+19:47 KST normal-speed repeat도 p95/p99/max `1.523/1.979/5.929 N`, false
+CONTACT 1 event·29 sample이었다. GUI에서 CONTACT를 인지하지 못했지만
+저장된 canonical state로 확인했다. 따라서 추가 normal-speed repeat도
+`FS-06` FAIL이며, 이 repeat의 `ft_il_episode_verify PASS`는 schema/stage 검증에만
+해당한다. 해당 episode의 raw/JT FT는 `261.989/261.786 Hz`였지만 contact
+observation 저장 rate는 `215.499 Hz`여서 정식 `FS-05` rate evidence로도
+인정하지 않는다.
 
 ## Contact observer gates
 
@@ -95,8 +113,10 @@ CONTACT는 모두 0회였다. 이를 포함하면서 CONTACT ON 경계 `2.5 N`�
 | `CO-04` | FREE false contact 0회, contact precision·recall과 onset/release latency가 확정 기준 통과 | 독립 same-clock interval 기반 contact report |
 | `CO-05` | IL 수집과 policy inference가 동일한 canonical observation을 사용하고 publisher는 하나뿐임 | config hash와 두 모드의 graph/message report |
 
-현재 detector 계약은 force residual ON/OFF `2.5/1.2 N`, CONTACT/FREE hold
-`12/20 ms`다. 중간 구간은 상태를 유지하며 moment는 contact state 판정에 사용하지
+현재 임시 detector 계약은 force residual ON/OFF `3.0/1.2 N`, CONTACT/FREE hold
+`20/20 ms`다. 2026-09-01 무접촉 task 2개의 offline replay에서 false CONTACT가
+0회인 후보로 선택했다. 중간 구간은 상태를 유지하며 moment는 contact state 판정에
+사용하지 않는다. 독립 contact ground truth 검증 전에는 `CO-04` 승인값으로 간주하지
 않는다.
 
 ## Feedback leader gates
@@ -111,6 +131,11 @@ CONTACT는 모두 0회였다. 이를 포함하면서 CONTACT ON 경계 `2.5 N`�
 
 Canonical CONTACT에도 설정된 ramp-up을 적용한다. 합격 rise time과 torque step은
 확정값을 evaluator에 명시하고 실측 report가 통과하기 전까지 승인하지 않는다.
+Ramp 적용 후 leader feedback으로 mapping되는 force vector norm은 `25 N`으로
+포화한다. `25 N`을 넘으면 6축 wrench 전체를 같은 비율로 축소한다. 이 제한은
+contact 판정과 저장되는 raw residual에는 적용하지 않으며, follower의 실제 접촉력을
+`25 N` 이하로 제어하는 기능도 아니다. 최종 관절 출력에는 기존 per-joint torque
+clip을 별도로 적용한다.
 
 ## Open decisions
 

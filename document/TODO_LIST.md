@@ -126,7 +126,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] model-only timing gate를 p99 `3.048 ms`, hard max `3.810 ms`로 확정
 - [x] 현재 physical gravity + 32-sample multiscale ridge 모델을 운용 artifact로 선택
 - [x] model/metadata SHA를 `operator_selected_20260901` 계약에 고정
-- [x] contact detector를 `2.5/1.2 N`, `12/20 ms`로 확정
+- [x] contact detector 임시값을 `3.0/1.2 N`, `20/20 ms`로 변경
 - [x] 기존 train13/targeted6가 262.5 Hz runtime 표본 계약과 일치함을 확인
 - [ ] 방법 고정 후 새 독립 held-out에서 robust 정확도 gate 검증
 

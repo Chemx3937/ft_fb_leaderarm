@@ -123,8 +123,18 @@ bool LeaderTeleopNode::compute_reflected_wrench_and_jacobian(
         std::min(tau_fb_contact_min_scale_period_, tau_fb_contact_scale_);
     }
 
+    Vec6 reflected_contact_wrench = tau_fb_contact_scale_ * contact_wrench;
+    const double force_norm = reflected_contact_wrench.head<3>().norm();
+    if (force_norm > contact_feedback_force_limit_N_) {
+      reflected_contact_wrench *= contact_feedback_force_limit_N_ / force_norm;
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "[CONTACT OBSERVER] feedback force limited %.2f -> %.2f N",
+        force_norm, contact_feedback_force_limit_N_);
+    }
+
     return compute_reflected_wrench_and_jacobian_from_delta(
-      tau_fb_contact_scale_ * contact_wrench,
+      reflected_contact_wrench,
       impedance_command_base_frame_id_,
       impedance_tip_frame_id_,
       jt_wrench_sign_,

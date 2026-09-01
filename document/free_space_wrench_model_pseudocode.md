@@ -66,8 +66,8 @@ function start_observer(parameters):
 
     zero_verified = false
     history = deque(max_length=32)
-    detector = Schmitt(on=2.5 N, off=1.2 N,
-                       on_hold=12 ms, off_hold=20 ms)
+    detector = Schmitt(on=3.0 N, off=1.2 N,
+                       on_hold=20 ms, off_hold=20 ms)
     start timer at 262.5 Hz
 ```
 
@@ -164,13 +164,13 @@ W_contact_sensor = W_sensor - W_free_hat
 e_force = norm(W_contact_sensor.force)
 
 if detector.state == FREE:
-    if e_force >= 2.5 N continuously for 12 ms:
+    if e_force >= 3.0 N continuously for 20 ms:
         detector.state = CONTACT
 else:
     if e_force <= 1.2 N continuously for 20 ms:
         detector.state = FREE
 
-if 1.2 N < e_force < 2.5 N:
+if 1.2 N < e_force < 3.0 N:
     keep detector.state
 ```
 

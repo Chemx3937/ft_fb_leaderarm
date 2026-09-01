@@ -157,7 +157,7 @@ def _setup(context):
         ),
         ExecuteProcess(
             cmd=recorder_command,
-            output="screen",
+            output="both",
             emulate_tty=True,
         ),
         Node(
@@ -212,6 +212,6 @@ def generate_launch_description():
         DeclareLaunchArgument("feedback_authorization", default_value=""),
         DeclareLaunchArgument("leader_stale_timeout", default_value="0.020"),
         DeclareLaunchArgument("smooth_teleop_enable", default_value="true"),
-        DeclareLaunchArgument("keyboard_input_enabled", default_value="true"),
+        DeclareLaunchArgument("keyboard_input_enabled", default_value="false"),
         OpaqueFunction(function=_setup),
     ])

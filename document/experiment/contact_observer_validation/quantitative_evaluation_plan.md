@@ -35,41 +35,45 @@ e_force(t) = ||F_sensor(t) - F_free_hat(t)||_2
 현재 runtime 기준은 다음과 같다.
 
 ```yaml
-force_on_n: 2.5
+force_on_n: 3.0
 force_off_n: 1.2
-contact_hold_ms: 12.0
+contact_hold_ms: 20.0
 free_hold_ms: 20.0
 ```
 
-- FREE에서 `e_force >= 2.5 N`이 12 ms 이상 지속되면 CONTACT로 전환한다.
+- FREE에서 `e_force >= 3.0 N`이 20 ms 이상 지속되면 CONTACT로 전환한다.
 - CONTACT에서 `e_force <= 1.2 N`이 20 ms 이상 지속되면 FREE로 전환한다.
-- `1.2 N < e_force < 2.5 N`에서는 현재 상태를 유지한다.
+- `1.2 N < e_force < 3.0 N`에서는 현재 상태를 유지한다.
 - invalid, model-not-ready, stale 또는 sync 실패 시 기존 fail-close 계약을 유지한다.
 
 이전 runtime 값 `2.0/1.2 N`, `8/20 ms`에서 `force_on_n`과
-`contact_hold_ms`를 각각 `2.5 N`, `12 ms`로 변경했다.
+`contact_hold_ms`를 `2.5 N`, `12 ms`로 변경해 운용했다. 2026-09-01 무접촉
+logistic-box task 2회에서 false CONTACT가 재현되어 현재 임시값을 `3.0 N`,
+`20 ms`로 변경했다.
 
 ### 후보 선택 근거
 
 102개 모방학습 episode의 저장 state와 비교한 offline replay 결과다. 이는 threshold
 선정 참고값이며 독립 ground-truth 성능이나 `CO-04` 승격 evidence가 아니다.
 
-| 지표 | 이전 `2.0/1.2 N, 8/20 ms` | 현재 선택 `2.5/1.2 N, 12/20 ms` |
-|---|---:|---:|
-| Accuracy | 86.36% | 89.06% |
-| Balanced accuracy | 81.17% | 82.39% |
-| CONTACT precision | 77.28% | 88.84% |
-| CONTACT recall | 69.91% | 67.93% |
-| CONTACT F1 | 73.41% | 76.99% |
-| False contact activation | 644 | 274 |
-| Event precision | 46.65% | 83.67% |
-| Event recall | 97.12% | 95.19% |
-| Onset latency p95 | 18.83 ms | 37.73 ms |
-| Release latency p95 | 28.49 ms | 8.85 ms |
+| 지표 | 이전 `2.0/1.2 N, 8/20 ms` | 변경 전 `2.5/1.2 N, 12/20 ms` | 현재 임시 `3.0/1.2 N, 20/20 ms` |
+|---|---:|---:|---:|
+| Accuracy | 86.36% | 89.06% | 89.66% |
+| Balanced accuracy | 81.17% | 82.39% | 82.16% |
+| CONTACT precision | 77.28% | 88.84% | 93.86% |
+| CONTACT recall | 69.91% | 67.93% | 65.91% |
+| CONTACT F1 | 73.41% | 76.99% | 77.44% |
+| False contact activation | 644 | 274 | 190 |
+| Event precision | 46.65% | 83.67% | 95.81% |
+| Event recall | 97.12% | 95.19% | 94.23% |
+| Onset latency p95 | 18.83 ms | 37.73 ms | 217.06 ms |
+| Release latency p95 | 28.49 ms | 8.85 ms | 5.85 ms |
 
 안정 FREE 구간의 residual p99가 `2.424 N`이므로 `2.0 N` ON 기준은 정상 FREE
-오차에도 활성화되기 쉽다. 후보는 ON 기준을 p99보다 높이고 짧은 spike를 12 ms
-hold로 제거한다. 자세한 free-space 수치는
+오차에도 활성화되기 쉽다. 추가 무접촉 task 2회의 replay에서 `2.5 N / 40 ms`와
+`3.0 N / 20 ms`가 모두 false CONTACT 0회였고, 더 짧은 hold에서 같은 pseudo-label
+event recall을 보인 `3.0 N / 20 ms`를 임시 선택했다. 이 값은 독립 ground truth가
+아니므로 실제 contact recall이나 `CO-04` 통과를 증명하지 않는다. 자세한 free-space 수치는
 [free-space 검증 결과](../free_space_wrench_model_validation/README.md)를 따른다.
 
 ## 4. 독립 ground truth 구성
@@ -107,7 +111,7 @@ GT OFF  = GT ON보다 낮고 FREE noise보다 높은 값
 ```
 
 `GT ON`, `GT OFF`와 ground-truth hold는 독립 센서 측정 후 확정하여 원본 데이터와
-함께 기록한다. Observer의 `2.5/1.2 N`을 그대로 복사하지 않는다.
+함께 기록한다. Observer의 `3.0/1.2 N`을 그대로 복사하지 않는다.
 
 ## 5. 데이터 수집 계획
 

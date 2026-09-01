@@ -23,16 +23,16 @@ def test_observer_uses_selected_contact_thresholds():
     parameters = yaml.safe_load(
         (PACKAGE_ROOT / "config/observer.yaml").read_text()
     )["ft_contact_observer"]["ros__parameters"]
-    assert parameters["force_on_n"] == 2.5
+    assert parameters["force_on_n"] == 3.0
     assert parameters["force_off_n"] == 1.2
-    assert parameters["contact_hold_ms"] == 12.0
+    assert parameters["contact_hold_ms"] == 20.0
     assert parameters["free_hold_ms"] == 20.0
 
     source = (PACKAGE_ROOT / "ft_fb_leaderarm/observer_node.py").read_text()
     for expected in (
-        '"force_on_n": 2.5',
+        '"force_on_n": 3.0',
         '"force_off_n": 1.2',
-        '"contact_hold_ms": 12.0',
+        '"contact_hold_ms": 20.0',
         '"free_hold_ms": 20.0',
     ):
         assert expected in source
@@ -68,8 +68,14 @@ def test_ft_teleop_config_cannot_default_to_jt_feedback():
     assert config["use_jt_wrench_feedback"] is False
     assert config["tau_fb_contact_gate_enable"] is False
     assert config["tau_fb_contact_ramp_up_ms"] > 0.0
+    assert config["contact_feedback_force_limit_N"] == 25.0
     source = (PACKAGE_ROOT / "src/single_impedance_wrench_feedback.cpp").read_text()
-    assert "tau_fb_contact_scale_ * contact_wrench" in source
+    assert "reflected_contact_wrench = tau_fb_contact_scale_ * contact_wrench" in source
+    assert "reflected_contact_wrench.head<3>().norm()" in source
+    assert (
+        "reflected_contact_wrench *= contact_feedback_force_limit_N_ / force_norm"
+        in source
+    )
 
 
 def test_fast_teleop_publishes_limited_leader_intent_not_raw_fk():
@@ -343,6 +349,10 @@ def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
         in source
     )
     assert 'DeclareLaunchArgument("enable_d435", default_value="false")' in source
+    assert (
+        'DeclareLaunchArgument("keyboard_input_enabled", default_value="false")'
+        in source
+    )
     assert 'else "--disable-d435"' in source
     assert 'package="ft_fb_leaderarm"' in source
     assert 'executable="ft_feedback_leader_data_collection_gui.py"' in source
@@ -363,6 +373,13 @@ def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
     ).read_text()
     assert 'super().__init__("feedback_leaderarm_data_collection_gui")' in gui
     assert 'recorder = "/chem_acp_raw_data_collection/"' in gui
+    assert "signal.signal(signal.SIGINT, lambda *_args: app.quit())" in gui
+    assert "signal.signal(signal.SIGINT, signal.SIG_IGN)" in gui
+    assert "executor.spin()" in gui
+    assert "executor.spin_once" not in gui
+    assert "QShortcut(QKeySequence(key), self)" in gui
+    assert "shortcut.setContext(Qt.WindowShortcut)" in gui
+    assert "def keyPressEvent" not in gui
     for service in (
         "start_episode", "stop_save", "stop_discard", "recover", "shutdown"
     ):

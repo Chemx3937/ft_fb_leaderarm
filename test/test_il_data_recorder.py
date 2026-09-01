@@ -68,6 +68,96 @@ def test_local_config_uses_d405_by_default_and_keeps_d435_optional(monkeypatch):
     ]
 
 
+def test_contact_prediction_age_accepts_fail_closed_observer_sentinels():
+    assert recorder.normalize_contact_prediction_age_ms(
+        -1.0, valid=False, model_ready=False
+    ) == 0.0
+    assert recorder.normalize_contact_prediction_age_ms(
+        float("inf"), valid=False, model_ready=True
+    ) == 0.0
+    with pytest.raises(ValueError, match="sentinel"):
+        recorder.normalize_contact_prediction_age_ms(
+            -1.0, valid=True, model_ready=True
+        )
+
+
+def test_ros_executor_failure_is_reported_and_stops_runtime():
+    stop_event = threading.Event()
+    node = SimpleNamespace(executor_error="")
+    executor = SimpleNamespace(
+        spin=mock.Mock(side_effect=RuntimeError("callback failed"))
+    )
+
+    recorder.spin_ros_executor(executor, node, stop_event)
+
+    assert stop_event.is_set()
+    assert node.executor_error == "RuntimeError: callback failed"
+
+    node.executor_error = ""
+    recorder.spin_ros_executor(executor, node, stop_event)
+    assert node.executor_error == ""
+
+
+def test_recording_controller_forwards_free_space_prediction():
+    controller = recorder.RecordingController.__new__(recorder.RecordingController)
+    controller._enqueue_live = mock.Mock()
+    wrench = recorder.np.arange(6, dtype=recorder.np.float64)
+    prediction = wrench + 10.0
+
+    controller.write_contact_observation(
+        1.0, 1.1, 7, wrench, 0, True, True, 0.2, prediction
+    )
+
+    enqueue = controller._enqueue_live.call_args.args[2]
+    pending_enqueue = controller._enqueue_live.call_args.args[3]()
+    writer = SimpleNamespace(write_contact_observation=mock.Mock())
+    enqueue(writer)
+    recorder.np.testing.assert_array_equal(
+        writer.write_contact_observation.call_args.args[-1], prediction
+    )
+
+    pending_writer = SimpleNamespace(write_contact_observation=mock.Mock())
+    prediction[:] = -1.0
+    pending_enqueue(pending_writer)
+    recorder.np.testing.assert_array_equal(
+        pending_writer.write_contact_observation.call_args.args[-1],
+        recorder.np.arange(6, dtype=recorder.np.float64) + 10.0,
+    )
+
+
+def test_camera_restart_waits_for_reconnect_period(monkeypatch):
+    camera = SimpleNamespace(
+        camera_id=0,
+        model="D405",
+        restart=mock.Mock(),
+        lock=threading.RLock(),
+        latest_error=None,
+    )
+    args = SimpleNamespace(
+        camera_reconnect_period_sec=5.0,
+        camera_hardware_reset_after_restarts=3,
+        camera_hardware_reset_settle_sec=6.0,
+    )
+    rows = [{"name": "camera_0_rgb", "ok": False}]
+    last_restart = {}
+    restart_counts = {}
+
+    monkeypatch.setattr(recorder, "now_s", lambda: 100.0)
+    recorder.maybe_restart_failed_cameras(
+        rows, [camera], last_restart, restart_counts, args
+    )
+    camera.restart.assert_not_called()
+
+    monkeypatch.setattr(recorder, "now_s", lambda: 106.0)
+    recorder.maybe_restart_failed_cameras(
+        rows, [camera], last_restart, restart_counts, args
+    )
+    camera.restart.assert_called_once_with(
+        hardware_reset=False,
+        hardware_reset_settle_sec=6.0,
+    )
+
+
 def test_recorder_rejects_unsafe_session_name(monkeypatch):
     with pytest.raises(SystemExit):
         _parse(monkeypatch, "--session-name", "../escaped")

@@ -1,7 +1,7 @@
 # 모방학습 episode의 contact observer 검증
 
 > 이 문서는 이전 runtime `2.0/1.2 N`, `8/20 ms`를 재생한 2026-08 결과다.
-> 현재 runtime은 `2.5/1.2 N`, `12/20 ms`이며 변경 근거와 남은 검증은
+> 현재 임시 runtime은 `3.0/1.2 N`, `20/20 ms`이며 변경 근거와 남은 검증은
 > [정량 평가 계획](quantitative_evaluation_plan.md)을 따른다.
 
 ## 결론

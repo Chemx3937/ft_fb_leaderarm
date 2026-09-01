@@ -28,7 +28,7 @@ ft_fb_leaderarm : physical FT raw wrench - physical FT free-space prediction
 | 모델 구조 | 기존 V2 학습 후보 | payload gravity + 32-sample multiscale ridge residual | 현재 선택 모델은 물리 성분과 학습 residual을 합산 |
 | 모델 주기 | inference worker와 cached observation 구조 | 262.5 Hz 직접 inference/publish | FT 모델은 3.810 ms deadline을 통과해야 함 |
 | force 정확도 | V2 자체 승인 계약 | aggregate p99와 group p95 1 N, hard max 2 N 정식 gate | 현재 모델은 실패 사실을 유지한 operator-selected artifact |
-| contact detector | V2 canonical detector | force norm 2.5/1.2 N, 12/20 ms | replay 오검출 감소를 반영했으며 독립 contact 검증은 남음 |
+| contact detector | V2 canonical detector | force norm 3.0/1.2 N, 20/20 ms (임시) | 무접촉 replay 오검출 감소를 반영했으며 독립 contact 검증은 남음 |
 | moment contact | 기본 운용에서 제한적 | contact state는 force norm만 사용 | 순수 moment 접촉은 검출하지 못할 수 있음 |
 | observer 출력 | `ContactObservation`, base frame | 동일 | leader teleop과 IL recorder의 소비 인터페이스 유지 |
 | feedback 계산 | contact wrench → leader Jacobian transpose torque | 동일 | wrench가 같다면 feedback 적용 메커니즘은 동일 |

@@ -639,6 +639,7 @@ import signal
 import sys
 import threading
 import time
+import traceback
 import xml.etree.ElementTree as ET
 from collections import deque
 from pathlib import Path
@@ -810,21 +811,41 @@ def normalize_contact_prediction_age_ms(
 ) -> float:
     """Keep stored contact diagnostics finite without weakening safety masks.
 
-    The contact observer intentionally publishes +inf when no prediction is
-    available.  That value is only valid on a fail-closed observation.  Raw and
-    converted datasets require finite numeric arrays, so store 0.0 while the
-    valid/model_ready masks retain the authoritative not-ready state.
+    The contact observer publishes a negative sentinel when no prediction is
+    available; older versions used +inf.  Either value is only valid on a
+    fail-closed observation.  Raw and converted datasets require finite numeric
+    arrays, so store 0.0 while the valid/model_ready masks retain the
+    authoritative not-ready state.
     """
     age_ms = float(value)
     if math.isfinite(age_ms) and age_ms >= 0.0:
         return age_ms
     policy_ready = bool(valid) and bool(model_ready)
-    if math.isinf(age_ms) and age_ms > 0.0 and not policy_ready:
+    if not policy_ready and (
+        (math.isfinite(age_ms) and age_ms < 0.0)
+        or (math.isinf(age_ms) and age_ms > 0.0)
+    ):
         return 0.0
     raise ValueError(
-        "prediction_age_ms must be finite and non-negative, or +inf only "
-        "when ContactObservation is invalid/not-ready"
+        "prediction_age_ms must be finite and non-negative, or a negative/+inf "
+        "sentinel only when ContactObservation is invalid/not-ready"
     )
+
+
+def spin_ros_executor(executor: Any, ros_node: Any, stop_event: threading.Event) -> None:
+    """Fail visibly instead of leaving a live recorder with a dead ROS executor."""
+    try:
+        executor.spin()
+    except BaseException as exc:
+        if stop_event.is_set():
+            return
+        ros_node.executor_error = f"{type(exc).__name__}: {exc}"
+        traceback.print_exc()
+        print(
+            f"ROS executor stopped unexpectedly: {ros_node.executor_error}",
+            file=sys.stderr,
+        )
+        stop_event.set()
 
 
 def validate_and_record_message_frame(
@@ -3756,6 +3777,7 @@ class RecordingController:
         valid: bool,
         model_ready: bool,
         prediction_age_ms: float,
+        free_space_wrench_prediction: np.ndarray,
     ):
         self._enqueue_live(
             "contact_observation",
@@ -3769,10 +3791,14 @@ class RecordingController:
                 valid,
                 model_ready,
                 prediction_age_ms,
+                free_space_wrench_prediction,
             ),
             lambda: (
                 lambda writer,
-                pending_wrench=np.asarray(contact_wrench).copy(): (
+                pending_wrench=np.asarray(contact_wrench).copy(),
+                pending_prediction=np.asarray(
+                    free_space_wrench_prediction
+                ).copy(): (
                     writer.write_contact_observation(
                         source_timestamp,
                         receive_timestamp,
@@ -3782,6 +3808,7 @@ class RecordingController:
                         valid,
                         model_ready,
                         prediction_age_ms,
+                        pending_prediction,
                     )
                 )
             ),
@@ -4396,6 +4423,7 @@ def make_ros_node_class(ros):
                 getattr(args, "use_observer_input_robot_streams", False)
             )
             self.robot_error = None
+            self.executor_error = ""
             self.cameras: List[Any] = []
             self.robot_sampler: Optional[RobotSampler] = None
             self.shutdown_event: Optional[threading.Event] = None
@@ -6371,7 +6399,7 @@ def maybe_restart_failed_cameras(
     for cam in cameras:
         if cam.camera_id not in failed_camera_ids:
             continue
-        last = last_restart.get(cam.camera_id, 0.0)
+        last = last_restart.setdefault(cam.camera_id, t_now)
         if t_now - last < args.camera_reconnect_period_sec:
             continue
         attempt = camera_restart_counts.get(cam.camera_id, 0) + 1
@@ -7852,6 +7880,9 @@ def start_cameras_until_connected(
     attempts = {camera.camera_id: 0 for camera in cameras}
     retry_period = max(0.1, float(reconnect_period_sec))
     while pending:
+        executor_error = getattr(status_node, "executor_error", "")
+        if executor_error:
+            raise RuntimeError(f"ROS executor failed: {executor_error}")
         for camera_id, camera in list(pending.items()):
             attempts[camera_id] += 1
             try:
@@ -7917,7 +7948,11 @@ def start_runtime(
         ros_node.bind_runtime(cameras, None, shutdown_event)
         executor = ros["MultiThreadedExecutor"](num_threads=4)
         executor.add_node(ros_node)
-        ros_thread = threading.Thread(target=executor.spin, daemon=True)
+        ros_thread = threading.Thread(
+            target=spin_ros_executor,
+            args=(executor, ros_node, shutdown_event),
+            daemon=True,
+        )
         ros_thread.start()
 
         start_cameras_until_connected(
@@ -8090,6 +8125,8 @@ def main() -> int:
         wait_for_startup_readiness(
             cameras, robot_sampler, ros_node, args, shutdown_event
         )
+        if ros_node.executor_error:
+            raise RuntimeError(f"ROS executor failed: {ros_node.executor_error}")
         ros_node.startup_ready = True
         args.camera_calibration = {
             f"camera_{cam.camera_id}": cam.calibration_metadata()
