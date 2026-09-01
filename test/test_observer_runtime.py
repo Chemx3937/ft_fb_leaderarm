@@ -68,6 +68,21 @@ def test_observer_runtime_and_free_space_gates():
         OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N
     )
 
+    quantized_duration_s = 10.999721168074757
+    quantized_samples = 2887
+    quantized = analyze_observer_runtime(
+        start,
+        snapshot(
+            start["uptime_s"] + quantized_duration_s,
+            start["cycles"] + quantized_samples,
+            start["valid_predictions"] + quantized_samples,
+        ),
+        observations(101, 100 + quantized_samples),
+    )
+    assert quantized["gates"]["FS-05"]["passed"]
+    assert quantized["metrics"]["valid_publish_hz"] < 262.5
+    assert quantized["metrics"]["minimum_valid_predictions"] == quantized_samples
+
     runtime_rejected = analyze_observer_runtime(
         start,
         snapshot(
@@ -82,6 +97,7 @@ def test_observer_runtime_and_free_space_gates():
     )
     assert not runtime_rejected["gates"]["FS-05"]["passed"]
     assert runtime_rejected["metrics"]["stale_publications"] == 1
+    assert "valid publish rate is below 262.5 Hz" in runtime_rejected["failures"]
 
     contact_samples = [dict(row) for row in free_samples]
     for sample in contact_samples:

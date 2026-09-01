@@ -23,8 +23,8 @@ from .contract import (
 )
 
 
-SCHEMA_VERSION = 3
-ANALYSIS_TYPE = "physical_ft_observer_runtime_v3"
+SCHEMA_VERSION = 4
+ANALYSIS_TYPE = "physical_ft_observer_runtime_v4"
 COUNTERS = (
     "cycles",
     "valid_predictions",
@@ -189,9 +189,10 @@ def analyze_observer_runtime(start, end, observations):
         _count(end, "valid_predictions"),
     )
     actual_hz = deltas["valid_predictions"] / duration_s
+    minimum_valid_predictions = math.floor(duration_s * SAMPLE_HZ)
     stale_publications = sum(reason_deltas.get(key, 0) for key in STALE_REASONS)
     runtime_failures = []
-    if actual_hz < SAMPLE_HZ:
+    if deltas["valid_predictions"] < minimum_valid_predictions:
         runtime_failures.append(f"valid publish rate is below {SAMPLE_HZ} Hz")
     if deltas["invalid_publications"]:
         runtime_failures.append("invalid publications exist")
@@ -271,6 +272,7 @@ def analyze_observer_runtime(start, end, observations):
         "metrics": {
             "duration_s": duration_s,
             "valid_publish_hz": actual_hz,
+            "minimum_valid_predictions": minimum_valid_predictions,
             **deltas,
             "stale_publications": stale_publications,
             "invalid_reason_counts": reason_deltas,

@@ -62,7 +62,9 @@ report에서 `FS-05` runtime과 `FS-06` FREE residual을 판정한다.
 `FS-06`의 고정 운용 한계는 p95 `1.2 N`, p99 `1.5 N`, hard max `2.5 N`,
 false CONTACT `0회`다. 이는 정식 모델 승격용 `FS-03`의 `1/1/2 N`과 다른
 runtime 안전 계약이다.
-새 report 계약은 observer runtime v3와 feedback analysis v2다. 이전 schema
+observer rate는 diagnostics 구간 경계의 최대 1-sample 양자화를 반영해
+`valid_predictions >= floor(duration_s * 262.5)`로 판정한다. 새 report 계약은
+observer runtime v4와 feedback analysis v2다. 이전 schema
 report는 새 단계 승인 evidence로 재사용하지 않는다.
 
 ```bash

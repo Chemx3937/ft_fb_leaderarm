@@ -59,7 +59,7 @@ metadata SHA-256  : 025d761ba285d34850dfe4da1ba9b89d6f7c2109f9a03181fdfbadb55463
 | `FS-02` | contact-free dataset, 독립 `zero_set_id` 3개 이상, payload/controller/frame 혼합 없음 | dataset validation report |
 | `FS-03` | validation과 선택 모델의 새 held-out test 각각 aggregate `p99(e_force) <= 1 N`, 모든 `zero_set_id` group `p95(e_force) <= 1 N`, hard max `<= 2 N` | `ablation_report.json` |
 | `FS-04` | target PC model-only inference `p99 <= 3.048 ms`, hard max `<= 3.810 ms` | model runtime benchmark |
-| `FS-05` | observer ready 이후 측정 구간의 유효 publish rate `>= 262.5 Hz`, deadline miss·invalid·stale 0회 | 독립 runtime report |
+| `FS-05` | observer ready 이후 `valid_predictions >= floor(duration_s * 262.5)`, deadline miss·invalid·stale 0회 | 독립 runtime report |
 | `FS-06` | 독립 무접촉 동작에서 residual force p95 `<= 1.2 N`, p99 `<= 1.5 N`, hard max `<= 2.5 N`, false CONTACT 0회 | observer-only FREE report |
 | `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test |
 
