@@ -1,0 +1,204 @@
+# UMI-compatible IL recorder config owned by ft_fb_leaderarm.
+#
+# Usage:
+#   ros2 run ft_fb_leaderarm ft_il_data_collect -- \
+#     --config-yaml /path/to/ft_fb_leaderarm/config/il_data_collection.yaml
+#
+# Precedence: built-in defaults < this YAML < CLI arguments.
+
+# =============================================================================
+# 저장 항목 Quick Reference
+# =============================================================================
+# 문서용 주석이다. 실제 설정은 아래의 record_* / *_topic / *_hz key만 사용한다.
+# 상태는 현재 YAML 기준이다.
+#
+# 공통
+#   meta.json                  args, source topics, calibration, counts, Hz, units
+#   *_time_stamps.zarr         PC host timestamp, time.time() seconds
+#   RealSense *_hardware_*     frame.get_timestamp(), milliseconds
+#   RealSense *_frame_numbers  frame.get_frame_number()
+#
+# Cameras: camera_0_D405/ [ON], camera_1_D435/ [OFF: enable_d435=false]
+#   [ON] rgb.zarr              RealSense color rgb8, uint8, (T,H,W,3)
+#   [ON] depth.zarr            RealSense depth z16, uint16, (T,H,W)
+#                              align_depth_to_color=true -> color pixel grid
+#   [ON] rgb_* metadata        host time, hardware time, frame number
+#   [ON] depth_* metadata      host time, hardware time, frame number
+#
+# Robot: robot/
+#   [ON] joint_deg.zarr        /dsr01/joint_states.position, 6 arm joints, degree <- 현재 manipulator의 조인트 값
+#   [ON] hand_joint.zarr       /joint_states.position, HAND_RIGHT 15 joints, radian <- 현재 핸드의 조인트 값
+#   [OFF] ee_pose_fk_se3.zarr  controller current pose와 중복되어 V2에서는 저장하지 않음
+#   [ON] controller_current_pose_se3.zarr
+#                              /bae_r/observer_input current_pose
+#                              (controller actual/current TCP), mm/deg -> SE(3)
+#                              학습 변환 feedback pose는 이 값을 우선 사용
+#   [ON] command_pose_se3.zarr /bae_r/observer_input desired_pose
+#                              (controller desired TCP), euler_order=zyx,
+#                              mm/deg -> SE(3)
+#   [ON] command_quat_pose_se3 /right_dsr_controller/task_space_command PoseStamped <- Teleoperation 명령 값
+#   [OFF] contact_state.zarr   legacy /leader_teleop_node/contact_state
+#   [OFF] contact_phase.zarr   legacy /leader_teleop_node/contact_phase
+#   [ON] robot timestamps      joint/hand/quat은 host time,
+#                              ObserverInput current/desired는 header.stamp
+#
+# Canonical contact: contact/
+#   [ON] contact_wrench.zarr   /contact_observer/right/observation aligned wrench
+#   [ON] contact_state.zarr    canonical uint8, 0=free, 1=contact
+#   [ON] contact_valid.zarr, contact_model_ready.zarr
+#   [ON] source/receive timestamps, source sequence, prediction age
+#
+# Force/Torque: ft/
+#   [ON]  wrench_raw.zarr                 /aft_sensor2/wrench WrenchStamped
+#   [OFF] wrench_payload_gravity.zarr     URDF inertial + latest joint + ft_frame
+#   [OFF] wrench_comp_payload.zarr        wrench_raw - wrench_payload_gravity
+#   [ON]  wrench_time_stamps.zarr         enabled FT wrench stream 공통 timestamp
+#   [OFF] wrench_base.zarr                /aft_sensor2/wrench_base WrenchStamped
+#   [OFF] wrench_base_time_stamps.zarr    wrench_base host timestamp
+#   [ON]  jt_tared_wrench.zarr            현재 aggregate mode에서는
+#                                         /bae_r/observer_input.measured_wrench_raw
+#   [ON]  jt_tared_wrench_time_stamps     ObserverInput header.stamp
+#   [ON]  jt_tared_filtered_wrench.zarr   aggregate mode에서는
+#                                         /bae_r/observer_input.measured_wrench
+#   [ON]  jt_tared_filtered_*_stamps      ObserverInput header.stamp
+#
+# Joint Torque: jt/
+#   [OFF] joint_torque.zarr               /dsr01/joint_states.effort, 6 joints
+#   [OFF] joint_torque_time_stamps.zarr   robot sampler host timestamp
+
+d405_serial: "126122270712"
+d435_serial: "151222078010"
+# Current collection uses D405 only. Set true after reconnecting D435.
+enable_d435: false
+output_dir: /data/sata500
+session_name: logistic_box_ft_feedback
+
+follower_urdf: ~/dualarm_ws/src/aidin_dsr_dualarm/aidin_dsr_dualarm_description/urdf/aidin_dsr_dualarm.urdf
+joint_topic: /dsr01/joint_states
+joint_torque_topic: /dsr01/joint_states
+hand_joint_topic: /joint_states
+record_hand: true
+ft_topic: /aft_sensor2/wrench
+ft_base_topic: /aft_sensor2/wrench_base
+
+# 아래 JT direct topics도 aggregate mode를 끈 경우에만 subscription하는 fallback이다.
+jt_tared_wrench_topic: /bae_r/F_e_raw
+jt_tared_filtered_wrench_topic: /bae_r/F_e
+command_topic: /bae_r/desired_pose
+# 아래 두 direct topic은 use_observer_input_robot_streams=false일 때의 fallback이다.
+# 현재 V2 설정은 /bae_r/observer_input aggregate의 desired/actual TCP 값을 쓴다.
+current_pose_topic: /bae_r/current_pose
+use_observer_input_robot_streams: true
+observer_input_topic: /contact_state/observer_input
+observer_input_frame_id: right_base_link
+# contact_state: -1=비접촉, 1=접촉
+contact_state_topic: /leader_teleop_node/contact_state
+# contact_phase: contact_state에 pre-contact를 추가한 값. -1=비접촉, 0=pre-contact, 1=접촉
+contact_phase_topic: /leader_teleop_node/contact_phase
+# Canonical learned observer output. One message contains the aligned wrench,
+# 0/1 state, validity, source timestamp/sequence and prediction diagnostics.
+contact_observation_topic: /contact_observer/right/observation
+teleop_control_topic: /teleop_control
+command_msg_type: float64_multi_array
+command_float64_euler_order: zyx
+current_pose_float64_euler_order: zyx
+command_quat_topic: /right_dsr_controller/task_space_command
+command_quat_msg_type: geometry_msgs/PoseStamped
+
+base_frame: right_base_link
+ee_frame: right_link_6
+ft_frame: aft_sensor2
+
+# UMI-FT 원본(60 Hz camera/robot/action, 350 Hz wrench)에 가깝게 맞추는 우선순위:
+# 1) camera 30 / robot 60 / command 60 / wrench 350
+#    - 이미지 저장량은 60 Hz 대비 절반으로 줄이고, robot/action/wrench의 학습 시간 간격은 원본과 동일하게 맞출 수 있음.
+# 2) camera 30 / robot 60 / command 60 / wrench 262.5 또는 263
+#    - 3 / 262.5 = 4 / 350 이라 wrench 관측 간격을 원본과 동일하게 근사할 수 있음.
+# 3) camera 30 / robot 30 / command 30 / wrench 262.5 또는 263
+#    - 이미지/query는 원본과 맞지만 robot/action 시간 간격은 60 Hz 기준보다 거칠어짐.
+# 4) camera 20 / robot 20 / command 20 / wrench 250
+#    - 20 Hz의 한 frame은 0.05 s라 원본의 0.133 s(query), 0.167 s(rgb/action), 0.083 s(low_dim)를 정수 step으로 정확히 만들 수 없음.
+# 현재 값은 안정적인 low-rate 기본값이다. 위 우선순위로 Hz를 올리면 acp_logistic_box.yaml의 downsample 값도 같이 바꿔야 한다.
+# ***** 각 Modality Hz 설정 *****
+camera_fps: 30
+robot_sample_hz: 30.0
+command_quat_hz: 30.0
+command_hz: 30.0
+current_pose_hz: 30.0
+ft_hz: 262.5
+ft_base_hz: 200.0
+jt_tared_wrench_hz: 262.5
+jt_tared_filtered_wrench_hz: 262.5
+contact_state_hz: 262.5
+contact_phase_hz: 262.5
+contact_observation_hz: 262.5
+# true: Recorder에서 매 episode 시작 키(1)를 누를 때마다 Contact Observer의
+#       residual-zero baseline을 reset하고, 로봇 정지·비접촉·command 비활성
+#       상태에서 새 baseline이 준비될 때까지 기다린 뒤 기록을 시작한다.
+# false: 세션 시작 시 Contact Observer가 이미 계산한 residual-zero baseline을
+#        episode 사이에도 그대로 사용하며, 시작 키(1)에서 baseline을 reset하지 않는다.
+# 현재 운용은 Observer 초기화를 먼저 완료한 뒤 SLOW/FAST teleoperation 상태에서
+# 여러 episode를 연속 취득하므로 false를 사용한다.
+reset_contact_observer_each_episode: false
+contact_observer_reset_service: /contact_observer_node/reset_baseline
+contact_observer_ready_timeout_sec: 5.0
+
+align_depth_to_color: true
+hz_min_ratio: 0.80
+pre_roll_sec: 1.0
+startup_check_count: 10
+recovery_check_count: 5
+# Runtime health is checked every 0.2 s. Source rate/stale failures must remain
+# present for five consecutive checks (~1 s) before auto-stop. Writer hard
+# errors and system-memory CRITICAL still stop immediately.
+health_failure_check_count: 5
+startup_status_period_sec: 1.0
+camera_reconnect_period_sec: 5.0
+# Startup only: after three unsuccessful pipeline restarts, reset only the
+# failing enabled RealSense serial, wait for USB re-enumeration, and retry.
+# Recording never starts until every enabled camera passes readiness.
+camera_hardware_reset_after_restarts: 3
+camera_hardware_reset_settle_sec: 6.0
+
+record_jt: false
+record_ee_pose_fk: false
+record_cmd_quat_pose: true
+record_cmd_pose: true
+record_current_pose: true
+record_ft_wrench_raw: true
+record_ft_wrench_payload_gravity: false
+record_ft_wrench_comp_payload: false
+record_ft_base: false
+record_jt_tared_wrench: true
+record_jt_tared_filtered_wrench: true
+# Legacy leader-owned labels remain available by CLI but are disabled for V2.
+record_contact_state: false
+record_contact_phase: false
+record_contact_observation: true
+
+preview: false
+command_position_unit: mm
+current_pose_position_unit: mm
+# Five-episode pilot headroom. The queue resets for every episode; these values
+# bound one episode's transient disk-writer backlog, not the number of episodes.
+writer_queue_size: 8192
+writer_queue_max_bytes: 536870912  # 512 MiB hard payload cap
+# Large mixed batches let each camera contribute complete 32-frame Zarr chunks
+# without changing any source sampling or saved-data target rate.
+writer_batch_size: 4096
+writer_queue_warn_ratio: 0.75
+
+# 통합 Feedback Leader Arm GUI/launch는 recorder를 ROS service mode로 실행한다.
+# GUI는 카메라 frame을 구독하지 않으므로 writer queue 메모리를 추가로 사용하지 않는다.
+control_mode: ros  # 통합 Feedback Leader Arm launch/GUI의 실제 production mode.
+teleop_status_topic: /leader_teleop_node/status
+recorder_diagnostics_topic: /chem_acp_raw_data_collection/diagnostics
+recorder_ft_selected_topic: /chem_acp_raw_data_collection/ft_selected
+diagnostics_period_sec: 0.5
+require_teleop_fast: true
+
+# 0은 target PC의 MemTotal과 현재 pre-roll/queue 설정으로 adaptive limit을 계산한다.
+# 명시 값이 필요하면 target PC RAM 측정 후 byte 단위로 설정한다.
+recorder_rss_hard_bytes: 0
+system_memory_warn_bytes: 0
+system_memory_stop_bytes: 0

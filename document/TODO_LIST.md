@@ -186,11 +186,12 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## Phase 7: IL 적용
 
-- [x] FT observer, 기존 UMI recorder와 Feedback Leader Arm GUI 통합 launch 구현
+- [x] FT observer, 패키지 내장 UMI-compatible recorder와 GUI 통합 launch 구현
+- [x] IL recorder·GUI·설정의 `chem_UMI-FT_ACP`/`fb_leaderarm` runtime 경로 의존성 제거
 - [x] raw/prediction/residual/state/model hash/timestamp/stage 저장 계약 구현
 - [x] 저장된 episode의 읽기 전용 verifier 구현
 - [ ] 동일 observation topic의 publisher가 하나인지 실제 graph에서 확인
-- [ ] 외부 UMI recorder와 policy의 262.5 Hz contact rate와 config hash 확인
+- [ ] 내장 UMI-compatible recorder와 policy의 262.5 Hz contact rate와 config hash 확인
 - [ ] feedback OFF의 작은 test episode를 새 session에 저장하고 verifier PASS 확인
 - [ ] IL collection과 policy inference에서 `ft_il_contact_verify` 각각 PASS
 - [ ] 승인된 task 범위에서 본 IL 수집 시작

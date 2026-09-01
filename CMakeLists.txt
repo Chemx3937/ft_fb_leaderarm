@@ -143,11 +143,13 @@ install(PROGRAMS
   scripts/ft_contact_evaluate
   scripts/ft_il_contact_verify
   scripts/ft_il_episode_verify
+  scripts/ft_il_data_collect
   scripts/ft_observer_runtime_evaluate
   scripts/ft_feedback_analyze
   scripts/ft_feedback_onset_evaluate
   scripts/ft_feedback_authorize
   scripts/ft_free_space_collection_gui.py
+  scripts/ft_feedback_leader_data_collection_gui.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -155,7 +157,11 @@ install(DIRECTORY config launch document
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(FILES README.md
+install(FILES README.md requirements-il-collection.txt
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(FILES THIRD_PARTY_NOTICES.md
   DESTINATION share/${PROJECT_NAME}
 )
 

@@ -1,0 +1,4 @@
+# Python packages not provided by this ROS 2 workspace's rosdep contract.
+zarr==2.18.3
+numcodecs==0.13.1
+pyrealsense2==2.56.5.9235

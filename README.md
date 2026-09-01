@@ -279,7 +279,7 @@ report와 authorization은 raw CSV까지 hash로 묶으므로 분석 후 파일�
 | 40% | `I verified at least three feedback-OFF free-space runs, controlled contact detection, and the passing automatic analysis` |
 | 100% | `I verified correct feedback direction with no vibration or pose jump at the 40 percent stage and reviewed the passing automatic analysis` |
 
-IL recorder의 기존 source 계약도 유지된다.
+IL recorder의 UMI-compatible source 계약도 유지된다.
 
 - physical raw FT: `/aft_sensor2/wrench`, sensor frame, 1 kHz publish
 - collector/runtime 처리율: 262.5 Hz
@@ -288,10 +288,12 @@ IL recorder의 기존 source 계약도 유지된다.
 
 동일한 `/contact_observer/right/observation`에 기존
 `contact_observer_node.py`와 새 `ft_contact_observer`를 동시에 실행하면
-안 된다. `ft_feedback_leader_data_collection.launch.py`는 새 observer/leader,
-기존 UMI recorder와 기존 Feedback Leader Arm GUI를 한 번에 실행한다. 기존 통합
-launch와 동시에 실행하지 않으며 실제 명령은 [실행 명령어](document/command.md)의
-통합 Feedback IL GUI 단계를 따른다.
+안 된다. `ft_feedback_leader_data_collection.launch.py`는 이 패키지가 소유한
+observer, leader, UMI-compatible recorder와 Feedback Leader Arm GUI를 한 번에
+실행한다. `chem_UMI-FT_ACP`와 `fb_leaderarm` 소스 경로는 수집 runtime에
+필요하지 않다. 다른 observer, teleop 또는 recorder launch와 동시에 실행하지
+않으며 실제 명령은 [실행 명령어](document/command.md)의 통합 Feedback IL
+GUI 단계를 따른다.
 
 ## 좌표계와 영향 범위
 

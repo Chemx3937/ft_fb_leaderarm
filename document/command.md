@@ -680,8 +680,8 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
 
 ## 15. IL recorder 적용 전 확인
 
-기존 recorder/GUI를 연결할 때 기존 V2 observer와 FT observer를 동시에 같은
-topic으로 발행하면 안 된다.
+패키지 내장 recorder/GUI를 연결할 때 기존 V2 observer와 FT observer를
+동시에 같은 topic으로 발행하면 안 된다.
 
 ```bash
 ros2 topic info /contact_observer/right/observation --verbose
@@ -707,30 +707,29 @@ contact wrench가 모두 남는지 검증한 후 본 수집을 시작한다.
 않는다.
 
 ```bash
-export FT_UMI_ROOT=/home/vision/chem_UMI-FT_ACP
-export FT_UMI_PYTHON=/home/vision/venv_act/bin/python
-export FT_UMI_RECORDER="${FT_UMI_ROOT}/UMIFT_Data/wired_collection/Python/chem_acp_raw_data_collection_lowhz.py"
-export FT_UMI_CONFIG="${FT_UMI_ROOT}/UMIFT_Data/wired_collection/Python/chem_acp_raw_data_collection_lowhz_v2.yaml"
+export FT_IL_RECORDER_PYTHON=/home/vision/venv_act/bin/python
 export FT_IL_DATA_DIR=/data/sata500
 export FT_IL_SESSION=logistic_box_ft_feedback_YYYYMMDD_off_01
 
-test -x "${FT_UMI_PYTHON}"
-test -f "${FT_UMI_RECORDER}"
-test -f "${FT_UMI_CONFIG}"
+test -x "${FT_IL_RECORDER_PYTHON}"
+test -f "${FT_PACKAGE_ROOT}/config/il_data_collection.yaml"
+"${FT_IL_RECORDER_PYTHON}" -m pip check
 test -w "${FT_IL_DATA_DIR}"
 findmnt -T "${FT_IL_DATA_DIR}"
 ```
 
+수집 Python 환경을 새로 만들 때는 repository의
+`requirements-il-collection.txt`를 사용한다. launch preflight가 Zarr,
+RealSense, OpenCV와 ROS message import를 모두 확인한 뒤에만 하드웨어 node를
+시작한다.
+
 `YYYYMMDD`를 실제 날짜로 바꾸고, `findmnt` 결과가 root filesystem이 아닌 전용
-저장 장치인지 확인한다. 그다음 observer, teleop, 기존 UMI recorder와 기존
-Feedback Leader Arm GUI를 한 번에 실행한다.
+저장 장치인지 확인한다. 그다음 observer, teleop, 패키지 내장
+UMI-compatible recorder와 Feedback Leader Arm GUI를 한 번에 실행한다.
 
 ```bash
 ros2 launch ft_fb_leaderarm ft_feedback_leader_data_collection.launch.py \
-  umi_root:="${FT_UMI_ROOT}" \
-  umi_python:="${FT_UMI_PYTHON}" \
-  umi_recorder_script:="${FT_UMI_RECORDER}" \
-  umi_recorder_config:="${FT_UMI_CONFIG}" \
+  recorder_python:="${FT_IL_RECORDER_PYTHON}" \
   data_output_dir:="${FT_IL_DATA_DIR}" \
   data_session_name:="${FT_IL_SESSION}" \
   enable_d435:=false \
@@ -756,7 +755,8 @@ ros2 run ft_fb_leaderarm ft_il_episode_verify -- \
   --expected-stage 0.0 \
   --output "${FT_EVIDENCE_DIR}/il_episode_off_01.json"
 
-jq '{passed,failures,arrays}' "${FT_EVIDENCE_DIR}/il_episode_off_01.json"
+jq '{passed,camera_mode,failures,arrays}' \
+  "${FT_EVIDENCE_DIR}/il_episode_off_01.json"
 ```
 
 `passed=true`인 episode만 사용한다. 40%와 100% 수집은 각각 앞 단계 authorization을

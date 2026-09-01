@@ -130,7 +130,9 @@ ros2 run ft_fb_leaderarm ft_il_episode_verify -- \
   --output /absolute/path/il_episode_verification.json
 ```
 
-필수 저장 항목이 하나라도 없으면 `FAIL`이며 해당 episode는 `FB-05` evidence로
-인정하지 않는다.
+필수 D405 RGB/depth, robot/hand/pose, physical/JT FT, canonical contact 배열이
+하나라도 없으면 `FAIL`이다. `enable_d435=true`인 episode는 D435 배열도
+필수이며, false인 episode에 D435 디렉터리가 있어도 실패한다. 통과하지 못한
+episode는 `FB-05` evidence로 인정하지 않는다.
 
 완료 보고에는 실행한 명령, 통과·실패 결과, 실행하지 못한 하드웨어 검증을 기록한다.

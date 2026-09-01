@@ -1,9 +1,10 @@
-"""Launch physical-FT feedback teleop with the existing UMI recorder GUI."""
+"""Launch feedback teleop with the package-owned IL recorder and GUI."""
 
 from datetime import datetime
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -58,16 +59,11 @@ def _pythonpath_with_system_qt():
 def _setup(context):
     share = Path(get_package_share_directory("ft_fb_leaderarm"))
     teleop_launch = share / "launch/ft_feedback_leader_teleop.launch.py"
-    umi_root = _required_path(context, "umi_root", "directory")
-    umi_python = _required_path(context, "umi_python", executable=True)
-    recorder_script = _required_path(context, "umi_recorder_script")
-    recorder_config = _required_path(context, "umi_recorder_config")
+    recorder_python = _required_path(
+        context, "recorder_python", executable=True)
+    recorder_config = _required_path(context, "recorder_config")
     output_dir = _required_path(context, "data_output_dir", "directory")
     model_path = _required_path(context, "model_path")
-    try:
-        recorder_script.relative_to(umi_root)
-    except ValueError as exc:
-        raise RuntimeError("umi_recorder_script must be inside umi_root") from exc
     if _boolean(context, "require_output_mount"):
         mount = output_dir
         while not os.path.ismount(mount):
@@ -98,8 +94,8 @@ def _setup(context):
     )
 
     recorder_command = [
-        str(umi_python),
-        str(recorder_script),
+        str(recorder_python),
+        "-m", "ft_fb_leaderarm.il_data_recorder",
         "--config-yaml", str(recorder_config),
         d435_flag,
         "--output-dir", str(output_dir),
@@ -110,7 +106,6 @@ def _setup(context):
     ]
     validation = subprocess.run(
         recorder_command + ["--validate-config-only"],
-        cwd=str(umi_root),
         text=True,
         capture_output=True,
         check=False,
@@ -120,6 +115,25 @@ def _setup(context):
             "recorder preflight failed before hardware startup:\n"
             + validation.stdout
             + validation.stderr
+        )
+    gui_environment = dict(os.environ)
+    gui_environment["PYTHONPATH"] = _pythonpath_with_system_qt()
+    gui_validation = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import PyQt5, rclpy, contact_observer_msgs",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=gui_environment,
+    )
+    if gui_validation.returncode != 0:
+        raise RuntimeError(
+            "GUI dependency preflight failed before hardware startup:\n"
+            + gui_validation.stdout
+            + gui_validation.stderr
         )
 
     teleop_arguments = {
@@ -143,16 +157,15 @@ def _setup(context):
         ),
         ExecuteProcess(
             cmd=recorder_command,
-            cwd=str(umi_root),
             output="screen",
             emulate_tty=True,
         ),
         Node(
-            package="fb_leaderarm",
-            executable="feedback_leaderarm_data_collection_gui.py",
+            package="ft_fb_leaderarm",
+            executable="ft_feedback_leader_data_collection_gui.py",
             name="feedback_leaderarm_data_collection_gui",
             output="screen",
-            additional_env={"PYTHONPATH": _pythonpath_with_system_qt()},
+            additional_env={"PYTHONPATH": gui_environment["PYTHONPATH"]},
             parameters=[{
                 "collection_log_dir": str(gui_log_dir),
                 "observer_diagnostics_topic": "/ft_contact_observer/diagnostics",
@@ -165,10 +178,13 @@ def _setup(context):
 def generate_launch_description():
     share = Path(get_package_share_directory("ft_fb_leaderarm"))
     return LaunchDescription([
-        DeclareLaunchArgument("umi_root"),
-        DeclareLaunchArgument("umi_python"),
-        DeclareLaunchArgument("umi_recorder_script"),
-        DeclareLaunchArgument("umi_recorder_config"),
+        DeclareLaunchArgument(
+            "recorder_python", default_value="/home/vision/venv_act/bin/python"
+        ),
+        DeclareLaunchArgument(
+            "recorder_config",
+            default_value=str(share / "config/il_data_collection.yaml"),
+        ),
         DeclareLaunchArgument("data_output_dir"),
         DeclareLaunchArgument("data_session_name"),
         DeclareLaunchArgument("require_output_mount", default_value="true"),

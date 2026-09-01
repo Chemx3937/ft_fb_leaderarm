@@ -344,7 +344,29 @@ def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
     )
     assert 'DeclareLaunchArgument("enable_d435", default_value="false")' in source
     assert 'else "--disable-d435"' in source
-    assert 'package="fb_leaderarm"' in source
-    assert 'executable="feedback_leaderarm_data_collection_gui.py"' in source
+    assert 'package="ft_fb_leaderarm"' in source
+    assert 'executable="ft_feedback_leader_data_collection_gui.py"' in source
+    assert '"-m", "ft_fb_leaderarm.il_data_recorder"' in source
+    assert '"recorder_python", default_value="/home/vision/venv_act/bin/python"' in source
+    assert 'share / "config/il_data_collection.yaml"' in source
+    assert '"import PyQt5, rclpy, contact_observer_msgs"' in source
+    for external in (
+        "umi_root", "umi_python", "umi_recorder_script",
+        "umi_recorder_config", 'package="fb_leaderarm"',
+    ):
+        assert external not in source
     assert '"observer_diagnostics_topic": "/ft_contact_observer/diagnostics"' in source
     assert '"observer_input_topic": "/contact_state/observer_input"' in source
+
+    gui = (
+        PACKAGE_ROOT / "scripts/ft_feedback_leader_data_collection_gui.py"
+    ).read_text()
+    assert 'super().__init__("feedback_leaderarm_data_collection_gui")' in gui
+    assert 'recorder = "/chem_acp_raw_data_collection/"' in gui
+    for service in (
+        "start_episode", "stop_save", "stop_discard", "recover", "shutdown"
+    ):
+        assert f'"{service}"' in gui
+
+    package = (PACKAGE_ROOT / "package.xml").read_text()
+    assert "<exec_depend>fb_leaderarm</exec_depend>" not in package
