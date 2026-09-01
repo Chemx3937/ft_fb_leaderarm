@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the approved physical-FT model and publish canonical contact residuals."""
+"""Run an accepted physical-FT model and publish canonical contact residuals."""
 
 from collections import Counter, deque
 import json
@@ -76,9 +76,9 @@ class PhysicalFtContactObserver(Node):
             "zero_force_axis_std_max_n": 0.40,
             "sensor_to_tip_zyx_deg": [0.0, 0.0, 0.0],
             "tip_to_sensor_translation_m": [0.0, 0.0, 0.0],
-            "force_on_n": 2.0,
+            "force_on_n": 2.5,
             "force_off_n": 1.2,
-            "contact_hold_ms": 8.0,
+            "contact_hold_ms": 12.0,
             "free_hold_ms": 20.0,
         }
         for name, value in defaults.items():
@@ -232,7 +232,9 @@ class PhysicalFtContactObserver(Node):
         self.create_timer(1.0 / self.sample_hz, self.inference_callback)
         self.create_timer(1.0, self.publish_diagnostics)
         self.get_logger().info(
-            f"approved model={model_path}, ablation={self.predictor.ablation}, "
+            f"accepted model={model_path}, "
+            f"contract={self.predictor.acceptance_source}, "
+            f"ablation={self.predictor.ablation}, "
             f"history={self.predictor.history}, output={self.sample_hz:.1f} Hz, "
             f"prewarm_p99={self.prewarm_benchmark['p99_ms']:.3f} ms"
         )
@@ -490,6 +492,7 @@ class PhysicalFtContactObserver(Node):
         message.data = json.dumps(
             {
                 "approved_model": True,
+                "model_acceptance_source": self.predictor.acceptance_source,
                 "model_ready": True,
                 "baseline_ready": self.zero_verified,
                 "observer_ready": (

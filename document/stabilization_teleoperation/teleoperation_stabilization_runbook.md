@@ -213,7 +213,7 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_data_collection.launch.py --show-
 2. [SBC V2 impedance controller 실행](../command.md#3-sbc-v2-impedance-controller)
 3. [AFT 실행과 오른팔 hardware zero-set](../command.md#4-sbc-aft-on과-hardware-zero-set)
 4. payload, controller hash, sensor frame, `zero_set_id` 기록
-5. [승인 모델 observer-only 검증](../command.md#9-승인-모델-observer-only-검증)
+5. [운용 허용 모델 observer-only 검증](../command.md#9-운용-허용-모델-observer-only-검증)
 
 observer-only 상태에서 다음을 확인한다.
 
@@ -560,7 +560,7 @@ OFF에서 follower command를 활성화해 intent smoothing이 잔여 흔들림�
 반복한다. 단계는 다음 순서를 바꾸지 않는다.
 
 1. feedback OFF free-space에서 `G1/G2/G3`
-2. 승인 모델 완성 후 observer-only free-space에서 같은 sequence
+2. 현재 운용 허용 모델로 observer-only free-space에서 같은 sequence
 3. feedback 40% free-space에서 같은 sequence
 4. 40% controlled contact는 slow부터 시작하고 승인된 힘·속도·방향만 사용
 5. 40% 통과 후 100%에서 대표 subset 재검증

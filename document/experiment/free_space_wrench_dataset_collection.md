@@ -1,5 +1,9 @@
 # Free-space wrench 학습 dataset 수집 실험
 
+> 이 문서는 2026-08 데이터 수집과 당시 모델 선택 결과를 보존한 실험 기록이다.
+> 현재 운용 모델과 계약은
+> [현재 architecture](../free_space_wrench_model_architecture.md)를 따른다.
+
 - 수행일: 2026-08-19
 - 대상: 오른팔 follower, `/aft_sensor2`, feedback-OFF leader teleoperation
 - 범위: FAST 상태의 완전 무접촉 task 3회와 다양한 궤적 10회

@@ -12,7 +12,8 @@
   `[5.5, 52.0, 112.0, 28.0, -107.0, -35.0] deg`다.
 - 수집, 학습, observer는 `262.5 Hz` 계약을 공유한다. AFT 센서의 유효 취득률
   약 `500 Hz`는 상위 source rate이며 모델 호출·contact 판정 주기가 아니다.
-- runtime bundle은 `approval_contract=robust_force_v2_262p5hz`를 가져야 한다.
+- runtime bundle은 정식 `approval_contract=robust_force_v2_262p5hz`를 통과하거나,
+  아래에 고정한 operator-selected model/metadata SHA 쌍과 정확히 일치해야 한다.
 - dataset과 model의 `zero_set_id`, payload, controller, sensor frame 계약이
   runtime과 일치해야 한다.
 - 로봇 이동, FT zero-set, 데이터 수집, teleoperation, feedback은 사용자 승인 없이
@@ -34,6 +35,22 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 예측값만 빼야 한다. 별도 software bias 제거를 추가하려면 수집·학습·runtime·테스트의
 계약을 같은 변경에서 수정한다.
 
+## Operator-selected runtime model
+
+2026-09-01 사용자는 현재 모델의 알려진 정확도 한계를 수용하고 아래 artifact를
+운용 모델로 선택했다. 이 결정은 `FS-03`을 PASS로 바꾸지 않으며, observer-only와
+feedback 단계의 실측 gate도 면제하지 않는다.
+
+```text
+acceptance source : operator_selected_20260901
+model SHA-256     : 8c61261bb2fdd0151291f9c52ca627e59e04d71bc5655c92df5081943280ee8b
+metadata SHA-256  : 025d761ba285d34850dfe4da1ba9b89d6f7c2109f9a03181fdfbadb55463d882
+```
+
+두 SHA 중 하나라도 다르면 runtime, feedback evidence 분석과 authorization이 모두
+거부해야 한다. 향후 개선 모델이 정식 `robust_force_v2_262p5hz` 계약을 통과하면
+별도 operator-selected 예외 없이 교체할 수 있다.
+
 ## Free-space force prediction gates
 
 | ID | 합격 기준 | Evidence |
@@ -48,7 +65,8 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 
 모델 선택에는 validation만 사용한다. `FS-03` validation을 통과한 후보 중 RMSE가 가장
 작은 모델을 선택하고 held-out test는 그 모델에 한 번만 사용한다. 통과 후보가 없으면
-최저 RMSE 후보는 diagnostic artifact로만 남기며 승인하지 않는다.
+최저 RMSE 후보는 기본적으로 diagnostic artifact로만 남긴다. 위의 명시적
+operator-selected 결정은 현재 고정 SHA 쌍에만 적용되는 별도 운용 결정이다.
 
 ## Contact observer gates
 
@@ -59,6 +77,10 @@ wrench다. Free-space model은 무접촉 `W_sensor`를 예측하고, observer는
 | `CO-03` | leader arm 없이 observer 단독 launch 가능 | standalone launch test |
 | `CO-04` | FREE false contact 0회, contact precision·recall과 onset/release latency가 확정 기준 통과 | 독립 same-clock interval 기반 contact report |
 | `CO-05` | IL 수집과 policy inference가 동일한 canonical observation을 사용하고 publisher는 하나뿐임 | config hash와 두 모드의 graph/message report |
+
+현재 detector 계약은 force residual ON/OFF `2.5/1.2 N`, CONTACT/FREE hold
+`12/20 ms`다. 중간 구간은 상태를 유지하며 moment는 contact state 판정에 사용하지
+않는다.
 
 ## Feedback leader gates
 

@@ -1,5 +1,9 @@
 # Free-space wrench 학습 architecture
 
+> Legacy: 2026-08 당시 5개 기본 ablation 후보를 설명한 문서다. 현재 운용 모델은
+> [physical gravity + 32-sample multiscale ridge](../free_space_wrench_model_architecture.md)이며,
+> 이 문서는 후보 비교 이력으로만 사용한다.
+
 ## 공통 문제 정의
 
 모든 후보는 같은 입력 source와 target을 사용한다.

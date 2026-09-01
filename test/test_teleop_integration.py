@@ -19,6 +19,25 @@ def test_ft_nodes_share_controller_state_topic():
         assert f'"observer_input_topic": "{topic}"' in source
 
 
+def test_observer_uses_selected_contact_thresholds():
+    parameters = yaml.safe_load(
+        (PACKAGE_ROOT / "config/observer.yaml").read_text()
+    )["ft_contact_observer"]["ros__parameters"]
+    assert parameters["force_on_n"] == 2.5
+    assert parameters["force_off_n"] == 1.2
+    assert parameters["contact_hold_ms"] == 12.0
+    assert parameters["free_hold_ms"] == 20.0
+
+    source = (PACKAGE_ROOT / "ft_fb_leaderarm/observer_node.py").read_text()
+    for expected in (
+        '"force_on_n": 2.5',
+        '"force_off_n": 1.2',
+        '"contact_hold_ms": 12.0',
+        '"free_hold_ms": 20.0',
+    ):
+        assert expected in source
+
+
 def test_ft_teleop_is_built_from_local_sources():
     cmake = (PACKAGE_ROOT / "CMakeLists.txt").read_text()
     expected_sources = (

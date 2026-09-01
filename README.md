@@ -20,7 +20,9 @@ single-impedance leader teleop을 이 패키지 안에 동일한 C++ 소스로 �
 - [GUI 기반 free-space wrench 데이터 수집](document/free_space_wrench_data_collection.md)
 - [구현 목표와 TODO](document/TODO_LIST.md)
 - [PC-SBC 시계 동기화와 FT sample 시간 정렬](document/timing_sync.md)
-- [학습 구조와 ablation](document/base_architecture.md)
+- [현재 모델 architecture](document/free_space_wrench_model_architecture.md)
+- [현재 모델 pseudocode](document/free_space_wrench_model_pseudocode.md)
+- [과거 설계와 개선 기록](document/legacy/README.md)
 - [fb_leaderarm과의 비교](document/compare%20ft_fb_leaderarm%20and%20fb_leader%20arm.md)
 - [FT 센서 점검표](document/FTsensor_check_list.md)
 - [AFT 센서 사양과 현재 이슈](document/AFT_sensor_issue.md)
@@ -64,8 +66,10 @@ hard max <= 2.0 N
 모델 선택에는 validation만 사용하고, 선택이 끝난 뒤 독립
 `zero_set_id` held-out test를 한 번 평가한다. validation 또는 test가 위 gate를
 넘거나, CPU 추론이 262.5 Hz의 p99 3.048 ms/hard max 3.810 ms deadline을 통과하지 못하면
-`metadata.json`에 `approved: false`가 기록되고 runtime은 그 모델을
-로드하지 않는다.
+`metadata.json`에 `approved: false`가 기록되고 기본적으로 runtime은 그 모델을
+로드하지 않는다. 현재 운용 모델은 사용자가 model/metadata SHA 쌍을
+`operator_selected_20260901`로 고정했기 때문에 이 한 artifact만 예외적으로 로드한다.
+이 선택은 정식 정확도 gate PASS를 의미하지 않는다.
 
 코드만으로 실제 장비의 정확도를 미리 보장할 수는 없다. 262.5 Hz 데이터 취득과
 held-out 결과가 gate를 통과해야 보장이 성립한다.
@@ -171,7 +175,7 @@ observer도 1초 zero 검증을 다시 통과하기 전까지 `valid=false`를 �
 
 ```bash
 ros2 launch ft_fb_leaderarm ft_contact_observer.launch.py \
-  model_path:=/home/vision/.ros/ft_fb_leaderarm/models/right_v1/model.ts \
+  model_path:=/home/vision/.ros/ft_fb_leaderarm/models/right_train13_ridge_short_multiscale_bundle_v3_20260822/model.ts \
   zero_set_confirmed:=true \
   zero_set_id:=runtime_tare_20260806_01 \
   payload_id:=right_tool_m2p1kg_oz0p17m_v1 \
@@ -186,8 +190,9 @@ ros2 topic echo /ft_contact_observer/diagnostics --once
 ros2 topic echo /contact_observer/right/observation --once
 ```
 
-기본 contact detector는 force norm `2.0/1.2 N` ON/OFF hysteresis와
-`8/20 ms` hold를 사용한다. threshold는 실제 contact SNR 검증 뒤 조정한다.
+contact detector는 force norm `2.5/1.2 N` ON/OFF hysteresis와
+`12/20 ms` hold를 사용한다. 이 값은 모방학습 replay의 오검출 감소를 근거로
+선택했으며 독립 ground-truth controlled-contact 검증은 아직 남아 있다.
 
 ## FT 기반 leader teleoperation/IL 연동
 
@@ -195,7 +200,7 @@ ros2 topic echo /contact_observer/right/observation --once
 
 ```bash
 ros2 launch ft_fb_leaderarm ft_feedback_leader_teleop.launch.py \
-  model_path:=/home/vision/.ros/ft_fb_leaderarm/models/right_v1/model.ts \
+  model_path:=/home/vision/.ros/ft_fb_leaderarm/models/right_train13_ridge_short_multiscale_bundle_v3_20260822/model.ts \
   zero_set_confirmed:=true \
   zero_set_id:=runtime_tare_20260806_01 \
   payload_id:=right_tool_m2p1kg_oz0p17m_v1 \

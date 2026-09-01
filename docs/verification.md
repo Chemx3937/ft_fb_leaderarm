@@ -20,8 +20,8 @@
 | `FS-03`, `FS-04` | [model tests](../test/test_model_bundle.py) | [학습·비교](../document/command.md#7-5개-모델-학습) | 불필요 | `ablation_report.json`, `metadata.json` |
 | `FS-05`, `FS-06` | [runtime test](../test/test_observer_runtime.py) | [runtime/FREE 평가](#observer-runtime-and-free-evidence) | 필요 | `observer_runtime_*.json` |
 | `FS-07` | [GUI integration test](../test/test_teleop_integration.py) | [수집 GUI](../document/free_space_wrench_data_collection.md#8-pc에서-ft-collector와-전용-gui-실행) | 필요 | GUI integration 결과, dataset/model report |
-| `CO-01`, `CO-02` | [detector contract test](../test/test_contract.py) | [observer-only 검증](../document/command.md#9-승인-모델-observer-only-검증) | 필요 | topic capture, diagnostics |
-| `CO-03` | [standalone launch](../launch/ft_contact_observer.launch.py) | [observer-only 검증](../document/command.md#9-승인-모델-observer-only-검증) | 필요 | launch 결과, diagnostics |
+| `CO-01`, `CO-02` | [detector contract test](../test/test_contract.py) | [observer-only 검증](../document/command.md#9-운용-허용-모델-observer-only-검증) | 필요 | topic capture, diagnostics |
+| `CO-03` | [standalone launch](../launch/ft_contact_observer.launch.py) | [observer-only 검증](../document/command.md#9-운용-허용-모델-observer-only-검증) | 필요 | launch 결과, diagnostics |
 | `CO-04` | [contact evaluator test](../test/test_contact_evaluation.py) | [ground-truth 평가](#contact-ground-truth-evidence) | 필요 | `contact_evaluation_*.json` |
 | `CO-05` | [IL contract test](../test/test_il_contact_verification.py) | [collection/inference 평가](#il-contact-contract) | 필요 | 모드별 `il_contact_*.json` |
 | `FB-01` | [feedback analysis test](../test/test_feedback_analysis.py) | [feedback-OFF evidence](../document/command.md#10-feedback-off-실기-evidence) | 필요 | analysis JSON, 원본 CSV |

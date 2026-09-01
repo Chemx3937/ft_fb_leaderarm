@@ -7,8 +7,8 @@
   → FT sensor 특성 확인
   → 독립 zero-set별 무접촉 데이터 수집
   → dataset 검증
-  → 5개 모델 학습/비교
-  → 승인 모델 observer-only 검증
+  → 모델 학습/비교 또는 현재 운용 모델 선택
+  → 운용 허용 모델 observer-only 검증
   → feedback OFF 분석
   → 40% 승인/검증
   → 100% 승인/검증
@@ -23,7 +23,7 @@
 | 1 | AFT drift/noise/zero 반복성 측정 | 1 N error budget에 충분한 sensor 여유 | [FT 점검표](FTsensor_check_list.md) |
 | 2 | 무접촉 episode 수집 | 최소 3개, 권장 8~10개 독립 zero group | [명령어](command.md) |
 | 3 | dataset 검증 | 모든 episode 계약 통과, group split 생성 | [명령어](command.md), [TODO](TODO_LIST.md) |
-| 4 | architecture 학습 | validation/test robust force gate와 262.5 Hz runtime deadline 통과 | [architecture](base_architecture.md), [명령어](command.md) |
+| 4 | 모델 선택 | 현재 고정 SHA 쌍 또는 정식 robust gate 통과 모델 확정 | [현재 architecture](free_space_wrench_model_architecture.md), [pseudocode](free_space_wrench_model_pseudocode.md) |
 | 5 | observer-only 실기 | 262.5 Hz, FREE p95/p99 1 N, hard max 2 N, false contact 0 | [명령어](command.md) |
 | 6 | feedback OFF evidence | FREE 3회+CONTACT, analyzer `GO` | [명령어](command.md) |
 | 7 | 40% feedback | 방향·진동·pose jump 정상, analyzer `GO` | [명령어](command.md) |
@@ -38,7 +38,8 @@
 - 접촉이 free-space 학습 episode에 포함됨
 - 다른 payload/tool/controller 계약이 같은 dataset에 섞임
 - FT drift/noise만으로 1 N에 접근함
-- validation 또는 held-out test가 p99 1 N, group p95 1 N, hard max 2 N 중 하나를 넘음
+- 새 모델을 정식 승격할 때 validation 또는 held-out test가 p99 1 N, group p95 1 N,
+  hard max 2 N 중 하나를 넘음
 - inference p99가 3.048 ms 또는 hard max가 3.810 ms를 넘음
 - observer invalid/stale/deadline miss가 발생함
 - FREE false contact가 한 번이라도 발생함

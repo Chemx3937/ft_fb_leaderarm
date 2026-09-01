@@ -1,5 +1,10 @@
 # 모방학습 episode의 free-space wrench 모델 검증
 
+> 이 문서는 모델을 diagnostic artifact로만 평가한 2026-08 결과다. 2026-09-01
+> 사용자는 동일한 model/metadata SHA 쌍을 현재 운용 모델로 선택했다. 정량 결과와
+> 한계는 그대로이며 현재 구조는
+> [모델 architecture](../../free_space_wrench_model_architecture.md)를 따른다.
+
 ## 결론
 
 현재 diagnostic 모델을 102개 logistic-box 모방학습 episode에 offline replay했다.

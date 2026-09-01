@@ -1,5 +1,9 @@
 # 모방학습 episode의 contact observer 검증
 
+> 이 문서는 이전 runtime `2.0/1.2 N`, `8/20 ms`를 재생한 2026-08 결과다.
+> 현재 runtime은 `2.5/1.2 N`, `12/20 ms`이며 변경 근거와 남은 검증은
+> [정량 평가 계획](quantitative_evaluation_plan.md)을 따른다.
+
 ## 결론
 
 **실제 물리 접촉 정답과의 정확도: 계산 불가(NOT EVALUABLE).**
@@ -10,7 +14,7 @@
 `/contact_observer/right/observation`이므로 이를 실제 정답이라고 간주하면 순환 검증이 된다.
 
 아래 수치는 실제 정답 정확도가 아니라 기존 IL observer 출력과의 **참고용 일치도**다.
-현재 free-space 모델 residual에 현행 Schmitt detector(`ON 2.0 N / OFF 1.2 N`,
+동일 free-space 모델 residual에 당시 Schmitt detector(`ON 2.0 N / OFF 1.2 N`,
 `8/20 ms` hold)를 적용하고, 모방학습 data에 저장된 기존 contact state와 비교했다.
 전체 sample precision/recall/F1/accuracy는 `0.773/`
 `0.699/0.734/0.864`이며
@@ -59,6 +63,6 @@ current replay state를 함께 표시한다. 붉은 영역은 두 state의 불�
 
 - 누가/언제: 이 offline 분석기가 2026-08-26T14:17:27.391018+00:00에 저장 data를 replay했다.
 - 어디서/무엇을: `/data/logistic_box_contact_observer`의 102개 episode에서 current contact state를 계산했다.
-- 어떻게: `W_contact = W_raw - W_free_hat`의 force norm에 현행 Schmitt detector를 적용하고
+- 어떻게: `W_contact = W_raw - W_free_hat`의 force norm에 당시 Schmitt detector를 적용하고
   저장된 IL contact channel과 sample/event 단위로 비교했다.
 - 왜: 새 model/observer가 기존 모방학습 observation과 얼마나 호환되는지 확인하기 위해서다.

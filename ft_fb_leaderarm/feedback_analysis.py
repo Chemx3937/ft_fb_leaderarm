@@ -12,6 +12,8 @@ import sys
 
 import numpy as np
 
+from .contract import runtime_model_acceptance
+
 from .feedback_authorization import REFERENCE_CLIP_NM
 
 
@@ -427,12 +429,11 @@ def analyze_feedback_evidence(
         model = model / "model.ts"
     metadata = model.parent / "metadata.json"
     if not model.is_file() or not metadata.is_file():
-        raise RuntimeError("approved model.ts and metadata.json are required")
+        raise RuntimeError("accepted model.ts and metadata.json are required")
     model_document = json.loads(metadata.read_text(encoding="utf-8"))
-    if model_document.get("approved") is not True:
-        raise RuntimeError("feedback evidence requires approved=true model metadata")
-    if model_document.get("model_sha256") != file_sha256(model):
-        raise RuntimeError("model SHA-256 differs from metadata")
+    runtime_model_acceptance(
+        model_document, file_sha256(model), file_sha256(metadata)
+    )
 
     evidence_paths = [
         Path(path).expanduser().resolve() for path in (*free_csvs, *contact_csvs)

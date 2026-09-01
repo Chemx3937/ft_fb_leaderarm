@@ -6,8 +6,8 @@
 구분하는지 독립 ground truth로 평가한다. 저장된 모방학습 contact state는 이전
 observer 출력이므로 최종 물리 정답으로 사용하지 않는다.
 
-이 문서의 observer 값은 **첫 실험 후보**이며 아직 runtime 설정에 적용하지 않았다.
-최종 승격은 독립 test 결과가 `CO-04`의 확정 기준을 통과한 뒤 결정한다.
+이 문서의 observer 값은 2026-09-01 runtime 설정에 적용했다. 독립 test 결과가
+`CO-04`의 확정 기준을 통과했다는 뜻은 아니며, controlled-contact 검증은 남아 있다.
 
 ## 2. 육하원칙
 
@@ -32,7 +32,7 @@ Force residual은 다음과 같다.
 e_force(t) = ||F_sensor(t) - F_free_hat(t)||_2
 ```
 
-첫 실험 후보는 다음과 같다.
+현재 runtime 기준은 다음과 같다.
 
 ```yaml
 force_on_n: 2.5
@@ -46,15 +46,15 @@ free_hold_ms: 20.0
 - `1.2 N < e_force < 2.5 N`에서는 현재 상태를 유지한다.
 - invalid, model-not-ready, stale 또는 sync 실패 시 기존 fail-close 계약을 유지한다.
 
-현재 runtime 값과의 차이는 `force_on_n: 2.0 -> 2.5`,
-`contact_hold_ms: 8.0 -> 12.0`뿐이다. `force_off_n`과 `free_hold_ms`는 유지한다.
+이전 runtime 값 `2.0/1.2 N`, `8/20 ms`에서 `force_on_n`과
+`contact_hold_ms`를 각각 `2.5 N`, `12 ms`로 변경했다.
 
 ### 후보 선택 근거
 
 102개 모방학습 episode의 저장 state와 비교한 offline replay 결과다. 이는 threshold
 선정 참고값이며 독립 ground-truth 성능이나 `CO-04` 승격 evidence가 아니다.
 
-| 지표 | 현재 `2.0/1.2 N, 8/20 ms` | 후보 `2.5/1.2 N, 12/20 ms` |
+| 지표 | 이전 `2.0/1.2 N, 8/20 ms` | 현재 선택 `2.5/1.2 N, 12/20 ms` |
 |---|---:|---:|
 | Accuracy | 86.36% | 89.06% |
 | Balanced accuracy | 81.17% | 82.39% |
@@ -252,5 +252,5 @@ episode bootstrap 신뢰구간은 현재 evaluator 출력에 없으므로 최종
 - 사용한 model/config hash와 observer 값
 - PASS/FAIL 및 실패한 조건 목록
 
-실측 evidence가 없거나 합격 기준이 미확정이면 후보 설정을 정식 runtime 기준으로
-승격하지 않는다.
+현재 threshold는 운용 기준으로 선택됐지만, 실측 evidence가 없거나 합격 기준이
+미확정이면 `CO-04`를 PASS로 판정하지 않는다.

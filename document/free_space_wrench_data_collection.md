@@ -393,9 +393,11 @@ jq . "${FT_DATA_DIR}/dataset_validation_v1.json"
 
 첫 episode 하나만 있을 때 validator가 최소 3개 group 부족으로 실패하는 것은 정상이다.
 
-## 지금 사용자가 수행할 다음 작업
+## 향후 모델 개선을 위해 재수집할 때의 순서
 
-현재 driver, impedance controller, AFT가 실행 중이라는 전제에서 다음 한 번만 수행한다.
+현재 운용 모델을 그대로 쓰는 동안에는 이 절을 실행할 필요가 없다. 개선 모델용
+새 dataset을 수집하기로 결정한 경우에만, driver/controller/AFT 상태를 당일 다시
+확인한 뒤 다음 순서를 수행한다.
 
 1. PC에서 feedback-OFF teleop를 `keyboard_input_enabled=false`로 실행한다.
 2. 운용자가 `INIT POSE → REALIGN`을 수행하고 Teleop `IDLE`을 확인한다.

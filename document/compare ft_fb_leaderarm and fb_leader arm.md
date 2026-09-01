@@ -25,10 +25,10 @@ ft_fb_leaderarm : physical FT raw wrench - physical FT free-space prediction
 | 학습 target | JTS free-space wrench | sensor-frame physical FT 6축 wrench | 두 모델 artifact는 교환할 수 없음 |
 | zero | V2 runtime baseline/residual 보정 포함 | 고정 초기 자세 hardware AFT zero-set 필수 | online bias가 실제 contact를 흡수할 위험은 줄고 zero 반복성 의존은 증가 |
 | runtime 보정 | prediction LPF, residual bias, task correction 존재 | 직접 예측, runtime residual bias 없음 | 지연은 작지만 순간 noise가 residual에 직접 나타남 |
-| 모델 후보 | 기존 V2 학습 후보 | static linear, dynamic/history MLP, LSTM, GRU | FT에서는 5개 후보를 동일 group split으로 비교 |
+| 모델 구조 | 기존 V2 학습 후보 | payload gravity + 32-sample multiscale ridge residual | 현재 선택 모델은 물리 성분과 학습 residual을 합산 |
 | 모델 주기 | inference worker와 cached observation 구조 | 262.5 Hz 직접 inference/publish | FT 모델은 3.810 ms deadline을 통과해야 함 |
-| 최대 force 오차 | V2 자체 승인 계약 | validation/test 모두 force-vector 최대 1 N | 평균 RMSE가 좋아도 한 sample이 1 N을 넘으면 불승인 |
-| contact detector | V2 canonical detector | force norm 2.0/1.2 N, 8/20 ms 기본값 | FT threshold는 실제 drift/contact SNR 측정 후 조정 필요 |
+| force 정확도 | V2 자체 승인 계약 | aggregate p99와 group p95 1 N, hard max 2 N 정식 gate | 현재 모델은 실패 사실을 유지한 operator-selected artifact |
+| contact detector | V2 canonical detector | force norm 2.5/1.2 N, 12/20 ms | replay 오검출 감소를 반영했으며 독립 contact 검증은 남음 |
 | moment contact | 기본 운용에서 제한적 | contact state는 force norm만 사용 | 순수 moment 접촉은 검출하지 못할 수 있음 |
 | observer 출력 | `ContactObservation`, base frame | 동일 | leader teleop과 IL recorder의 소비 인터페이스 유지 |
 | feedback 계산 | contact wrench → leader Jacobian transpose torque | 동일 | wrench가 같다면 feedback 적용 메커니즘은 동일 |
@@ -88,7 +88,7 @@ free-space episode 안에 포함하기 위한 순서다.
 
 - [전체 흐름](flow.md)
 - [목표와 TODO](TODO_LIST.md)
-- [학습 architecture](base_architecture.md)
+- [현재 모델 architecture](free_space_wrench_model_architecture.md)
 - [실행 명령](command.md)
 - [FT 센서 점검](FTsensor_check_list.md)
 - [실패 기록](problem/README.md)

@@ -21,25 +21,23 @@ export ROS_LOG_DIR=/tmp/ft_fb_leaderarm_ros_logs
 
 export FT_PACKAGE_ROOT=/home/vision/dualarm_ws/src/ft_fb_leaderarm
 export FT_DATA_DIR=/home/vision/.ros/ft_fb_leaderarm/data
-export FT_MODEL_DIR=/home/vision/.ros/ft_fb_leaderarm/models/right_v1
+export FT_MODEL_DIR=/home/vision/.ros/ft_fb_leaderarm/models/right_train13_ridge_short_multiscale_bundle_v3_20260822
 export FT_LOG_DIR=/home/vision/dualarm_ws/src/ft_fb_leaderarm/logs
-export FT_EVIDENCE_DIR=/home/vision/.ros/ft_fb_leaderarm/evidence/right_v1
+export FT_EVIDENCE_DIR=/home/vision/.ros/ft_fb_leaderarm/evidence/right_current_model
 export FT_PAYLOAD_ID=right_tool_m2p1kg_oz0p17m_v1
 export FT_CONTROLLER_HASH=bae_r_v2_c113eabf7e13_ca07ae197213
-export FT_MODEL=/home/vision/.ros/ft_fb_leaderarm/models/right_v1/model.ts
+export FT_MODEL=/home/vision/.ros/ft_fb_leaderarm/models/right_train13_ridge_short_multiscale_bundle_v3_20260822/model.ts
 ```
 
-다음 값은 로봇, leader, tool, task의 안전 한계로 실험 전에 직접 결정한다.
-문서가 임의로 확정할 수 있는 값이 아니다.
+현재 controlled-contact 운용 한계는 목표 `20 N 이하`, hard abort `25 N`이다.
 
 ```bash
-export FT_MAX_CONTACT_FORCE_N=REPLACE_WITH_APPROVED_TASK_LIMIT
+export FT_MAX_CONTACT_FORCE_N=25.0
 ```
 
-`REPLACE_WITH_APPROVED_TASK_LIMIT`는 실행 가능한 숫자가 아니라 의도적인
-안전 placeholder다. 예를 들어 사전 위험성 평가에서 `10.0 N`이 승인되었을
-때만 `export FT_MAX_CONTACT_FORCE_N=10.0`처럼 바꾼다. 이 값이 미정이면
-controlled-contact 실험과 단계 승인을 진행하지 않는다.
+`25.0`은 접근 목표가 아니라 즉시 중단 한계다. Contact 접근은 `50 mm/s 이하`로
+시작하고 `20 N`에 도달하기 전에 멈춘다. Tool, fixture 또는 task가 바뀌면 더 낮은
+한계를 다시 승인하기 전까지 controlled-contact를 진행하지 않는다.
 
 PC에서 두 입력 topic이 실제로 발견되는지 먼저 확인한다.
 
@@ -479,11 +477,21 @@ jq '{
 }' "${FT_MODEL_DIR}/metadata.json"
 ```
 
-`approved=true`가 아니면 다음 단계로 진행하지 않는다.
+정식 모델은 `approved=true`여야 한다. 현재 operator-selected 모델은 예외적으로 아래
+model/metadata SHA가 정확히 일치해야 한다.
+
+```bash
+sha256sum "${FT_MODEL}" "${FT_MODEL_DIR}/metadata.json"
+```
+
+```text
+model.ts       8c61261bb2fdd0151291f9c52ca627e59e04d71bc5655c92df5081943280ee8b
+metadata.json  025d761ba285d34850dfe4da1ba9b89d6f7c2109f9a03181fdfbadb55463d882
+```
 
 승인 dataset과 runtime model의 `sample_hz`는 모두 `262.5`여야 한다.
 
-## 9. 승인 모델 observer-only 검증
+## 9. 운용 허용 모델 observer-only 검증
 
 새 runtime zero-set 후 실행한다.
 

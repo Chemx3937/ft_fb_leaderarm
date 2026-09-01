@@ -11,6 +11,7 @@ from ft_fb_leaderarm.contract import (
     SAMPLE_HZ,
     SCHEMA_VERSION,
 )
+from ft_fb_leaderarm import contract
 from ft_fb_leaderarm.model import (
     BundlePredictor,
     PHYSICAL_RIDGE_ABLATION,
@@ -84,6 +85,43 @@ def test_rejected_bundle_is_not_runtime_loadable(tmp_path):
         assert "rejected" in str(exc)
     else:
         raise AssertionError("rejected model was accepted")
+
+
+def test_exact_operator_selected_bundle_is_runtime_loadable(tmp_path, monkeypatch):
+    core = WrenchRegressor(12, ())
+    model = make_normalized_model(
+        core,
+        np.zeros(12),
+        np.ones(12),
+        np.zeros(6),
+        np.ones(6),
+    )
+    save_bundle(
+        model,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "approved": False,
+            "sample_hz": SAMPLE_HZ,
+            "base_feature_dim": BASE_FEATURE_DIM,
+            "ablation": "static_linear",
+            "feature_mode": "static",
+            "history": 1,
+            "architecture": "mlp",
+        },
+        tmp_path,
+    )
+    monkeypatch.setattr(
+        contract,
+        "OPERATOR_SELECTED_MODEL_SHA256",
+        file_sha256(tmp_path / "model.ts"),
+    )
+    monkeypatch.setattr(
+        contract,
+        "OPERATOR_SELECTED_METADATA_SHA256",
+        file_sha256(tmp_path / "metadata.json"),
+    )
+    predictor = BundlePredictor(tmp_path)
+    assert predictor.acceptance_source == contract.OPERATOR_SELECTED_MODEL_CONTRACT
 
 
 def test_lstm_and_gru_bundles_round_trip(tmp_path):

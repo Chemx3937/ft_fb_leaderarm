@@ -3,8 +3,7 @@
 ## 최종 목표
 
 오른팔 follower가 무접촉으로 움직일 때 물리 AFT가 측정하는 6축 free-space
-wrench를 262.5 Hz로 예측한다. 무접촉 구간에서 다음을 만족하는 승인 모델을
-만든다.
+wrench를 262.5 Hz로 예측한다. 향후 개선 모델의 정식 목표는 다음과 같다.
 
 ```text
 contact_wrench = raw_physical_ft - predicted_free_space_wrench
@@ -14,14 +13,19 @@ aggregate p99 <= 1.0 N, every zero-set group p95 <= 1.0 N, hard max <= 2.0 N
 이 residual을 canonical `ContactObservation`으로 발행하여 contact 판정,
 leader force feedback, 모방학습 데이터 취득에 사용한다.
 
+현재 운용은 사용자가 2026-09-01 선택한 정확한 model/metadata SHA 쌍을 사용한다.
+이 선택은 정식 `FS-03` 정확도 PASS가 아니며, observer-only 이후 단계의 실측
+검증은 그대로 수행한다.
+
 ## 현재 구현 상태
 
 `READY_FOR_EVIDENCE`는 검증 도구가 준비됐다는 뜻이며 실제 목표 합격은 아니다.
 
 | 항목 | 상태 | 완료 기준 또는 남은 일 |
 |---|---|---|
-| Free-space 수집·검증·학습 GUI | `READY_FOR_EVIDENCE` | 독립 zero-set dataset과 실제 모델 report 필요 |
-| robust force·262.5 Hz gate | `READY_FOR_EVIDENCE` | 새 held-out test와 runtime evidence 필요 |
+| Free-space 수집·검증·학습 GUI | `IMPLEMENTED` | 향후 모델 개선 시 새 dataset evidence에 재사용 |
+| 현재 free-space 모델 | `OPERATOR_SELECTED` | 고정 model/metadata SHA 쌍 사용, 정식 FS-03은 FAIL 유지 |
+| robust force·262.5 Hz gate | `PARTIAL` | 현재 모델 FS-04 PASS, 향후 개선 모델의 새 held-out FS-03 필요 |
 | Contact observer·runtime/FREE 평가기 | `READY_FOR_EVIDENCE` | 실제 frame/sign/rate와 FREE residual 검증 필요 |
 | Contact ground-truth 평가기 | `PARTIAL` | ground truth 절차와 precision·recall·latency 기준 확정 필요 |
 | Feedback 분석·onset·단계 승인 | `READY_FOR_EVIDENCE` | rise time·torque step 기준과 OFF→40%→100% evidence 필요 |
@@ -32,14 +36,14 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## 다음 실행 작업
 
-기록일: `2026-08-19 KST (+0900)`
+기록일: `2026-09-01 KST (+0900)`
 
 | 순서 | 담당 | 다음 작업 | 완료 기준 | 상태 |
 |---:|---|---|---|---|
 | 1 | 사용자 | 시작 자세, tool/payload/controller/frame과 수집 안전 조건 재확인 | FS-01 계약과 현재 장비 상태 일치 | 완료 |
 | 2 | 사용자 | FAST-only task 무접촉 episode 3개 수집 | 각 `accepted=true`, 접촉 0회 | 완료: `tare_02~04` |
 | 3 | 사용자 | 다양한 궤적 10개와 최소 7개 추가 독립 zero group 수집 | payload/controller/frame 혼합 없는 dataset | 완료: 10 episodes/10 groups |
-| 4 | 검증 | 확대 dataset validator와 5개 ablation 재학습 | FS-02~04 report 통과, 승인 모델 생성 | final13 FS-02/04 PASS, FS-03 FAIL |
+| 4 | 사용자→검증 | 현재 모델의 운용 선택과 software 계약 반영 | 정확한 model/metadata SHA만 runtime 허용 | 완료: `operator_selected_20260901` |
 | 5 | 사용자→검증 | observer-only FREE evidence 수집 | FS-05~06, CO-01~03 report 통과 | 대기 |
 | 6 | 사용자→검증 | ground truth 절차·CO-04 기준 확정 후 controlled contact 평가 | CO-04 report 통과 | 대기 |
 | 7 | 사용자→검증 | FB-02 기준 확정 후 feedback OFF→40%→100% 분석·승인 | FB-01, FB-02, FB-04 report 통과 | 대기 |
@@ -47,9 +51,8 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 | 9 | 검증 | IL collection/inference에서 canonical contact 계약 확인 | CO-05 report 두 개 통과 | 대기 |
 | 10 | 사용자→검증 | 보류한 진동 전달 기준 확정·검증 | FB-03 통과 | 사용자 요청 전 보류 |
 
-전체 순서와 명령은 [free-space wrench 데이터 수집 가이드](free_space_wrench_data_collection.md)를
-따른다. 첫 실제 episode 검증이 끝나기 전에는 여러 episode나 FAST 동작으로 확대하지
-않는다.
+전체 순서와 명령은 [실행 명령](command.md)을 따른다. Free-space 재수집 가이드는
+향후 모델을 개선할 때만 사용한다.
 
 ## Phase 0: 안전·계약 확정
 
@@ -119,6 +122,9 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] 실제 수집·학습·observer 주기를 `262.5 Hz`로 확정
 - [x] 정확도 gate를 aggregate p99 `1 N`, zero-set별 p95 `1 N`, hard max `2 N`으로 변경
 - [x] model-only timing gate를 p99 `3.048 ms`, hard max `3.810 ms`로 확정
+- [x] 현재 physical gravity + 32-sample multiscale ridge 모델을 운용 artifact로 선택
+- [x] model/metadata SHA를 `operator_selected_20260901` 계약에 고정
+- [x] contact detector를 `2.5/1.2 N`, `12/20 ms`로 확정
 - [x] 기존 train13/targeted6가 262.5 Hz runtime 표본 계약과 일치함을 확인
 - [ ] 방법 고정 후 새 독립 held-out에서 robust 정확도 gate 검증
 
@@ -139,15 +145,14 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
   `3.980/6.260 N`
 - [x] final13 CPU model-only inference p99/최악 약 `41,900/32,400 Hz`
   (`0.02388/0.03088 ms`)
-- [ ] final13 `metadata.approved=true`: `false`, runtime 승격 금지
+- [x] final13 계열 ridge bundle의 `metadata.approved=false`와 FS-03 실패를 기록한
+  상태로 operator-selected runtime 사용 결정
 - [x] final13 residual을 task/diverse, offset, 정지/이동, 속도/가속도, global lag로 분리 분석
 - [x] validation-only causal acceleration smoothing과 짧은 history ablation 비교:
   단일 모델 최선 max `3.947 N`, FAIL
 - [x] validation-only 단순 ensemble 비교: 최선 max `3.530 N`, FAIL
 - [x] train group `3/5/7` learning curve: max `11.168/4.703/3.980 N`
-- [ ] [재개 체크포인트](problem/FT-20260819-01.md#다음-session-재개-체크포인트)에
-  정의한 독립 zero-set targeted train 6 groups 추가 수집
-- [ ] 방법 확정 후 새 독립 zero-set held-out test 3개 이상 수집
+- [ ] 향후 모델 개선을 재개할 때 독립 zero-set train/held-out을 새로 수집
 
 ## Phase 5: Observer-only 실기 검증
 
@@ -190,7 +195,9 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 
 ## Definition of Done
 
-- 실제 장비의 독립 zero-set held-out test에서 p99 1 N, group p95 1 N, hard max 2 N 통과
+- 현재 운용 모델의 model/metadata SHA가 `operator_selected_20260901` 계약과 일치
+- 향후 개선 모델로 교체할 때 독립 held-out에서 p99 1 N, group p95 1 N,
+  hard max 2 N 통과
 - target PC에서 model p99 3.048 ms/hard max 3.810 ms와 ROS 262.5 Hz 모두 통과
 - 장시간 FREE 실기에서 false contact 0회
 - controlled contact의 precision·recall·onset/release latency 기준 통과

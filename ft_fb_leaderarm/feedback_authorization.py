@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 
+from .contract import runtime_model_acceptance
+
 STAGE_SCALES = (0.40, 1.00)
 REFERENCE_GAIN = (0.012, 0.012, 0.065, 0.012, 0.065, 0.012)
 REFERENCE_CLIP_NM = (0.30, 0.30, 0.30, 0.08, 0.30, 0.08)
@@ -50,7 +52,7 @@ def stage_for_scale(gain_scale):
     )
 
 
-def _approved_model_contract(model_path):
+def _accepted_model_contract(model_path):
     model = Path(model_path).expanduser().resolve()
     if model.is_dir():
         model = model / "model.ts"
@@ -61,12 +63,10 @@ def _approved_model_contract(model_path):
         document = json.loads(metadata.read_text(encoding="utf-8"))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"failed to read model metadata: {metadata}") from exc
-    if document.get("approved") is not True:
-        raise RuntimeError("feedback authorization requires approved=true")
     model_hash = file_sha256(model)
-    if document.get("model_sha256") != model_hash:
-        raise RuntimeError("model SHA-256 differs from metadata")
-    return model, metadata, model_hash, file_sha256(metadata)
+    metadata_hash = file_sha256(metadata)
+    runtime_model_acceptance(document, model_hash, metadata_hash)
+    return model, metadata, model_hash, metadata_hash
 
 
 def _validate_analysis_report(path, model, metadata, target_gain_scale):
@@ -168,7 +168,7 @@ def validate_feedback_authorization(
     authorization_path, model_path, gain_scale, _seen=None
 ):
     stage = stage_for_scale(gain_scale)
-    model, metadata, model_hash, metadata_hash = _approved_model_contract(model_path)
+    model, metadata, model_hash, metadata_hash = _accepted_model_contract(model_path)
     target = Path(authorization_path).expanduser().resolve()
     if not target.is_file():
         raise RuntimeError(f"feedback authorization is missing: {target}")
@@ -238,7 +238,7 @@ def create_feedback_authorization(
         raise RuntimeError(
             "operator attestation must exactly match the required stage text"
         )
-    model, metadata, model_hash, metadata_hash = _approved_model_contract(model_path)
+    model, metadata, model_hash, metadata_hash = _accepted_model_contract(model_path)
     previous = str(previous_authorization).strip()
     if stage == 1 and previous:
         raise RuntimeError("stage-1 authorization cannot have a previous stage")

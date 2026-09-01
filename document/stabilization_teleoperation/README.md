@@ -1,8 +1,8 @@
 # Leader arm teleoperation 안정화 문서
 
 이 디렉터리는 leader arm teleoperation의 부드럽지 않은 움직임을 분석하고
-안정화하는 작업 문서를 관리한다. 구현과 검증 변경은 `smooth_teleop` 브랜치에서만
-진행하며 `main`은 안정화 작업 적용 전 상태를 유지한다.
+안정화하는 작업 문서를 관리한다. 현재 구현과 검증 상태는 branch 이름이 아니라
+아래 구현 문서, runbook과 실제 설정을 기준으로 판단한다.
 
 ## 문서
 

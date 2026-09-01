@@ -10,11 +10,11 @@ from torch import nn
 
 from .contract import (
     ABLATIONS,
-    APPROVAL_CONTRACT,
     BASE_FEATURE_DIM,
     SAMPLE_HZ,
     SCHEMA_VERSION,
     project_feature_windows,
+    runtime_model_acceptance,
 )
 
 
@@ -193,6 +193,7 @@ class BundlePredictor:
                 f"model.ts and metadata.json are required under {model_path.parent}"
             )
         self.metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        self.metadata_sha256 = file_sha256(metadata_path)
         if int(self.metadata.get("schema_version", -1)) != SCHEMA_VERSION:
             raise RuntimeError("unsupported model schema")
         self.sample_hz = float(self.metadata.get("sample_hz", 0.0))
@@ -200,13 +201,17 @@ class BundlePredictor:
             raise RuntimeError(f"model sample_hz must be {SAMPLE_HZ}")
         if int(self.metadata.get("base_feature_dim", -1)) != BASE_FEATURE_DIM:
             raise RuntimeError("model base feature contract is invalid")
-        if require_approved and not bool(self.metadata.get("approved", False)):
-            raise RuntimeError("model is rejected; accuracy/runtime gates did not pass")
-        if require_approved and self.metadata.get("approval_contract") != APPROVAL_CONTRACT:
-            raise RuntimeError("model approval contract is missing or obsolete")
         expected_hash = str(self.metadata.get("model_sha256", ""))
-        if not expected_hash or file_sha256(model_path) != expected_hash:
+        self.model_sha256 = file_sha256(model_path)
+        if not expected_hash or self.model_sha256 != expected_hash:
             raise RuntimeError("model SHA-256 does not match metadata")
+        self.acceptance_source = (
+            runtime_model_acceptance(
+                self.metadata, self.model_sha256, self.metadata_sha256
+            )
+            if require_approved
+            else "diagnostic"
+        )
         self.ablation = str(self.metadata.get("ablation", ""))
         if self.ablation not in RUNTIME_ABLATIONS:
             raise RuntimeError(f"unsupported model ablation: {self.ablation}")

@@ -8,6 +8,13 @@ import numpy as np
 
 SCHEMA_VERSION = 1
 APPROVAL_CONTRACT = "robust_force_v2_262p5hz"
+OPERATOR_SELECTED_MODEL_CONTRACT = "operator_selected_20260901"
+OPERATOR_SELECTED_MODEL_SHA256 = (
+    "8c61261bb2fdd0151291f9c52ca627e59e04d71bc5655c92df5081943280ee8b"
+)
+OPERATOR_SELECTED_METADATA_SHA256 = (
+    "025d761ba285d34850dfe4da1ba9b89d6f7c2109f9a03181fdfbadb55463d882"
+)
 SAMPLE_HZ = 262.5
 SAMPLE_PERIOD_S = 1.0 / SAMPLE_HZ
 BASE_FEATURE_DIM = 18
@@ -25,6 +32,22 @@ ABLATIONS = {
     "history_lstm": ("sequence", 16, (128,), "lstm"),
     "history_gru": ("sequence", 16, (128,), "gru"),
 }
+
+
+def runtime_model_acceptance(metadata, model_sha256, metadata_sha256):
+    """Return the exact contract that permits a bundle to run."""
+    if metadata.get("model_sha256") != model_sha256:
+        raise RuntimeError("model SHA-256 does not match metadata")
+    if metadata.get("approved") is True:
+        if metadata.get("approval_contract") != APPROVAL_CONTRACT:
+            raise RuntimeError("model approval contract is missing or obsolete")
+        return APPROVAL_CONTRACT
+    if (
+        model_sha256 == OPERATOR_SELECTED_MODEL_SHA256
+        and metadata_sha256 == OPERATOR_SELECTED_METADATA_SHA256
+    ):
+        return OPERATOR_SELECTED_MODEL_CONTRACT
+    raise RuntimeError("model is rejected; it is not approved or operator-selected")
 
 
 def finite_vector(value, size):

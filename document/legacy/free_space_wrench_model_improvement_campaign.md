@@ -1,5 +1,10 @@
 # Free-space wrench model 개선 캠페인
 
+> Legacy: 현재 데이터에서 수행한 2026-08 모델 개선 탐색 기록이다. 당시 결론인
+> `approved=false`, runtime 사용 금지는 그 시점의 정책이다. 현재는 사용자가 정확한
+> model/metadata SHA 쌍을 운용 모델로 선택했으며, 현재 계약과 구조는
+> [현재 architecture](../free_space_wrench_model_architecture.md)를 따른다.
+
 ## 목표와 판정 계약
 
 - 목표: 오른팔 무접촉 AFT wrench를 최대한 정확하게 예측하면서 contact observer가

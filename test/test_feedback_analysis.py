@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from ft_fb_leaderarm.contract import APPROVAL_CONTRACT
 from ft_fb_leaderarm.feedback_analysis import (
     REQUIRED_COLUMNS,
     analyze_feedback_evidence,
@@ -22,7 +23,13 @@ def write_model(root):
     model = root / "model.ts"
     model.write_bytes(b"approved synthetic model")
     (root / "metadata.json").write_text(
-        '{"approved":true,"model_sha256":"' + file_sha256(model) + '"}'
+        json.dumps(
+            {
+                "approved": True,
+                "approval_contract": APPROVAL_CONTRACT,
+                "model_sha256": file_sha256(model),
+            }
+        )
     )
     return model
 

@@ -1,5 +1,8 @@
 # Free-space wrench feature·ensemble·data-size ablation
 
+> 이 문서는 현재 모델을 선택하기 전의 2026-08 비교 실험 기록이다. 현재 운용
+> architecture는 [별도 문서](../free_space_wrench_model_architecture.md)를 따른다.
+
 - 수행일: 2026-08-19
 - 대상 dataset: `right_final13_20260819`
 - 범위: 저장된 train/validation data만 사용하는 offline 진단
