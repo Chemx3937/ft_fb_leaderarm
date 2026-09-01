@@ -24,7 +24,7 @@
 | 2 | 무접촉 episode 수집 | 최소 3개, 권장 8~10개 독립 zero group | [명령어](command.md) |
 | 3 | dataset 검증 | 모든 episode 계약 통과, group split 생성 | [명령어](command.md), [TODO](TODO_LIST.md) |
 | 4 | 모델 선택 | 현재 고정 SHA 쌍 또는 정식 robust gate 통과 모델 확정 | [현재 architecture](free_space_wrench_model_architecture.md), [pseudocode](free_space_wrench_model_pseudocode.md) |
-| 5 | observer-only 실기 | 262.5 Hz, FREE p95/p99 1 N, hard max 2 N, false contact 0 | [명령어](command.md) |
+| 5 | observer-only 실기 | 262.5 Hz, FREE p95 1.2 N, p99 1.5 N, hard max 2.5 N, false contact 0 | [명령어](command.md) |
 | 6 | feedback OFF evidence | FREE 3회+CONTACT, analyzer `GO` | [명령어](command.md) |
 | 7 | 40% feedback | 방향·진동·pose jump 정상, analyzer `GO` | [명령어](command.md) |
 | 8 | 100% feedback | authorization chain 검증과 제한 운용 통과 | [명령어](command.md) |

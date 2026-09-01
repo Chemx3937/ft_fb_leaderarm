@@ -26,7 +26,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 | Free-space 수집·검증·학습 GUI | `IMPLEMENTED` | 향후 모델 개선 시 새 dataset evidence에 재사용 |
 | 현재 free-space 모델 | `OPERATOR_SELECTED` | 고정 model/metadata SHA 쌍 사용, 정식 FS-03은 FAIL 유지 |
 | robust force·262.5 Hz gate | `PARTIAL` | 현재 모델 FS-04 PASS, 향후 개선 모델의 새 held-out FS-03 필요 |
-| Contact observer·runtime/FREE 평가기 | `READY_FOR_EVIDENCE` | 실제 frame/sign/rate와 FREE residual 검증 필요 |
+| Contact observer·runtime/FREE 평가기 | `READY_FOR_EVIDENCE` | 운용 한계 1.2/1.5/2.5 N 고정, 실제 frame/sign/rate와 FREE residual 검증 필요 |
 | Contact ground-truth 평가기 | `PARTIAL` | ground truth 절차와 precision·recall·latency 기준 확정 필요 |
 | Feedback 분석·onset·단계 승인 | `READY_FOR_EVIDENCE` | rise time·torque step 기준과 OFF→40%→100% evidence 필요 |
 | Feedback 진동 전달 검증 | `PARTIAL` | 사용자 요청 시 metric과 합격 기준을 정해 재개 |
@@ -63,6 +63,8 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [ ] AFT sensor frame과 sensor→TCP transform 실측
 - [x] 최대 허용 controlled-contact force 결정: 목표 `20 N` 이하, hard abort `25 N`
   (`episode_000~099`의 100개 과거 IL episode 근거, 2026-08-24 승인)
+- [x] 현재 선택 모델의 FREE 운용 한계 확정: p95 `1.2 N`, p99 `1.5 N`,
+  hard max `2.5 N`, false CONTACT `0회` (정식 FS-03 `1/1/2 N`은 유지)
 - [ ] moment 예측/feedback을 사용할 경우 최대 허용 moment 오차 결정
 - [ ] controlled-contact 전에 ground truth 절차와 CO-04 합격 기준 결정
 - [ ] feedback 전에 CONTACT rise time과 최대 torque step 결정
@@ -159,7 +161,7 @@ leader force feedback, 모방학습 데이터 취득에 사용한다.
 - [x] runtime rate/FREE residual과 contact ground-truth 평가기 구현
 - [ ] 새 runtime hardware zero-set 수행
 - [ ] `ft_observer_runtime_evaluate`로 유효 publish rate 262.5 Hz 확인
-- [ ] 같은 report에서 FREE residual p95/p99 1 N, hard max 2 N 확인
+- [ ] 같은 report에서 FREE residual p95 1.2 N, p99 1.5 N, hard max 2.5 N 확인
 - [ ] FREE false contact 0회 확인
 - [ ] ground truth 절차와 precision·recall·onset/release latency 기준 확정
 - [ ] `ft_contact_evaluate`로 controlled contact 검출/해제 기준 통과

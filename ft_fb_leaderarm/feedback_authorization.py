@@ -27,8 +27,8 @@ ATTESTATIONS = {
         "at the 40 percent stage and reviewed the passing automatic analysis"
     ),
 }
-ANALYSIS_SCHEMA_VERSION = 1
-ANALYSIS_TYPE = "physical_ft_feedback_analysis_v1"
+ANALYSIS_SCHEMA_VERSION = 2
+ANALYSIS_TYPE = "physical_ft_feedback_analysis_v2"
 TARGET_TO_EVIDENCE_GAIN = {0.40: 0.0, 1.00: 0.40}
 
 

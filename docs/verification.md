@@ -59,6 +59,11 @@ colcon test-result --test-result-base build/ft_fb_leaderarm --verbose
 
 사용자 승인 아래 observer가 실행 중일 때만 다음 passive 평가를 실행한다. 같은
 report에서 `FS-05` runtime과 `FS-06` FREE residual을 판정한다.
+`FS-06`의 고정 운용 한계는 p95 `1.2 N`, p99 `1.5 N`, hard max `2.5 N`,
+false CONTACT `0회`다. 이는 정식 모델 승격용 `FS-03`의 `1/1/2 N`과 다른
+runtime 안전 계약이다.
+새 report 계약은 observer runtime v3와 feedback analysis v2다. 이전 schema
+report는 새 단계 승인 evidence로 재사용하지 않는다.
 
 ```bash
 ros2 run ft_fb_leaderarm ft_observer_runtime_evaluate \

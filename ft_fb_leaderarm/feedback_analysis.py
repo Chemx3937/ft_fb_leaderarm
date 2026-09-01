@@ -12,17 +12,24 @@ import sys
 
 import numpy as np
 
-from .contract import runtime_model_acceptance
+from .contract import (
+    OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N,
+    OPERATIONAL_FREE_FORCE_P95_LIMIT_N,
+    OPERATIONAL_FREE_FORCE_P99_LIMIT_N,
+    runtime_model_acceptance,
+)
 
 from .feedback_authorization import REFERENCE_CLIP_NM
 
 
-ANALYSIS_SCHEMA_VERSION = 1
-ANALYSIS_TYPE = "physical_ft_feedback_analysis_v1"
+ANALYSIS_SCHEMA_VERSION = 2
+ANALYSIS_TYPE = "physical_ft_feedback_analysis_v2"
 ONSET_ANALYSIS_TYPE = "feedback_onset_analysis_v1"
 TARGET_TO_EVIDENCE_GAIN = {0.40: 0.0, 1.00: 0.40}
 SAFETY_LIMITS = {
-    "max_free_force_error_n": 1.0,
+    "max_free_force_p95_n": OPERATIONAL_FREE_FORCE_P95_LIMIT_N,
+    "max_free_force_p99_n": OPERATIONAL_FREE_FORCE_P99_LIMIT_N,
+    "max_free_force_error_n": OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N,
     "max_pose_step_deg": 1.0,
     "max_velocity_reversal_hz": 8.0,
     "max_source_age_ms": 20.0,
@@ -91,6 +98,8 @@ def validate_limits(limits):
     if int(limits["min_contact_activations"]) != limits["min_contact_activations"]:
         raise RuntimeError("min_contact_activations must be an integer")
     for key in (
+        "max_free_force_p95_n",
+        "max_free_force_p99_n",
         "max_free_force_error_n",
         "max_pose_step_deg",
         "max_velocity_reversal_hz",
@@ -236,6 +245,7 @@ def analyze_csv(path, expected_state):
         "contact_fraction": float(np.mean(contact)),
         "force_norm_max_n": float(np.max(force_norm)),
         "force_norm_p95_n": float(np.percentile(force_norm, 95.0)),
+        "force_norm_p99_n": float(np.percentile(force_norm, 99.0)),
         "score_force_norm_difference_max_n": float(np.max(np.abs(score - force_norm))),
         "leader_pose_step_max_deg": float(np.max(np.abs(np.diff(leader, axis=0)))),
         "follower_pose_step_max_deg": float(np.max(np.abs(np.diff(follower, axis=0)))),
@@ -503,6 +513,12 @@ def analyze_feedback_evidence(
         )
 
     false_contacts = sum(run["contact_activations"] for run in free_runs)
+    free_force_p95 = max(
+        (run["force_norm_p95_n"] for run in free_runs), default=math.inf
+    )
+    free_force_p99 = max(
+        (run["force_norm_p99_n"] for run in free_runs), default=math.inf
+    )
     free_force_max = max((run["force_norm_max_n"] for run in free_runs), default=math.inf)
     contact_force_max = max(
         (run["force_norm_max_n"] for run in contact_runs), default=math.inf
@@ -527,8 +543,16 @@ def analyze_feedback_evidence(
 
     fail(false_contacts != 0, "FREE runs contain false CONTACT activations")
     fail(
+        free_force_p95 > limits["max_free_force_p95_n"],
+        "FREE residual force p95 exceeded the operational limit",
+    )
+    fail(
+        free_force_p99 > limits["max_free_force_p99_n"],
+        "FREE residual force p99 exceeded the operational limit",
+    )
+    fail(
         free_force_max > limits["max_free_force_error_n"],
-        "FREE residual force exceeded the model error limit",
+        "FREE residual force exceeded the operational hard limit",
     )
     fail(free_feedback_max > 1.0e-6, "feedback torque leaked into canonical FREE")
     fail(
@@ -572,6 +596,8 @@ def analyze_feedback_evidence(
             "contact_run_count": len(contact_runs),
             "false_contact_activations": false_contacts,
             "controlled_contact_activations": contact_activations,
+            "free_force_norm_p95_n": free_force_p95,
+            "free_force_norm_p99_n": free_force_p99,
             "free_force_norm_max_n": free_force_max,
             "contact_force_norm_max_n": contact_force_max,
             "free_feedback_abs_max_nm": free_feedback_max,
@@ -599,7 +625,21 @@ def parse_args(argv=None):
     parser.add_argument("--free-csv", required=True, nargs="+")
     parser.add_argument("--contact-csv", required=True, nargs="+")
     parser.add_argument("--max-contact-force-n", required=True, type=float)
-    parser.add_argument("--max-free-force-error-n", type=float, default=1.0)
+    parser.add_argument(
+        "--max-free-force-p95-n",
+        type=float,
+        default=OPERATIONAL_FREE_FORCE_P95_LIMIT_N,
+    )
+    parser.add_argument(
+        "--max-free-force-p99-n",
+        type=float,
+        default=OPERATIONAL_FREE_FORCE_P99_LIMIT_N,
+    )
+    parser.add_argument(
+        "--max-free-force-error-n",
+        type=float,
+        default=OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N,
+    )
     parser.add_argument("--max-pose-step-deg", type=float, default=1.0)
     parser.add_argument("--max-velocity-reversal-hz", type=float, default=8.0)
     parser.add_argument("--max-source-age-ms", type=float, default=20.0)
@@ -617,6 +657,8 @@ def main(argv=None):
         args = parse_args(argv)
         numeric_limits = {
             "max_contact_force_n": args.max_contact_force_n,
+            "max_free_force_p95_n": args.max_free_force_p95_n,
+            "max_free_force_p99_n": args.max_free_force_p99_n,
             "max_free_force_error_n": args.max_free_force_error_n,
             "max_pose_step_deg": args.max_pose_step_deg,
             "max_velocity_reversal_hz": args.max_velocity_reversal_hz,

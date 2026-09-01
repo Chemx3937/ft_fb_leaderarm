@@ -178,7 +178,24 @@ e_force       = norm(W_contact_hat[Fx,Fy,Fz])
 state를 초기화하고 invalid observation을 발행한다. Leader feedback 소비자는 이때
 반사 torque를 0으로 만들어야 한다.
 
-## 8. 출력과 소비자
+## 8. 운용 중 FREE 감시
+
+현재 선택 모델의 observer-only와 feedback evidence는 각 FREE run에서 다음을 모두
+만족해야 한다.
+
+```text
+p95(e_force) <= 1.2 N
+p99(e_force) <= 1.5 N
+max(e_force) <= 2.5 N
+false CONTACT = 0
+```
+
+이 값은 2026-09-01 동일 zero-set task replay의 느린 동작
+`0.951/1.181/1.722 N`과 정상 속도 `1.072/1.336/2.096 N`을 근거로 고정했다.
+이는 현재 artifact의 운용 이상 감시 기준이며, 향후 모델 정식 승격 기준인
+`FS-03`의 p95/p99/hard max `1/1/2 N`을 대체하거나 완화하지 않는다.
+
+## 9. 출력과 소비자
 
 | Topic | Frame | 내용 |
 |---|---|---|

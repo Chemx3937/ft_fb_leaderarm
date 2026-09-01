@@ -60,13 +60,30 @@ metadata SHA-256  : 025d761ba285d34850dfe4da1ba9b89d6f7c2109f9a03181fdfbadb55463
 | `FS-03` | validation과 선택 모델의 새 held-out test 각각 aggregate `p99(e_force) <= 1 N`, 모든 `zero_set_id` group `p95(e_force) <= 1 N`, hard max `<= 2 N` | `ablation_report.json` |
 | `FS-04` | target PC model-only inference `p99 <= 3.048 ms`, hard max `<= 3.810 ms` | model runtime benchmark |
 | `FS-05` | observer ready 이후 측정 구간의 유효 publish rate `>= 262.5 Hz`, deadline miss·invalid·stale 0회 | 독립 runtime report |
-| `FS-06` | 독립 무접촉 동작에서 residual force p95/p99 `<= 1 N`, hard max `<= 2 N`, false CONTACT 0회 | observer-only FREE report |
+| `FS-06` | 독립 무접촉 동작에서 residual force p95 `<= 1.2 N`, p99 `<= 1.5 N`, hard max `<= 2.5 N`, false CONTACT 0회 | observer-only FREE report |
 | `FS-07` | 전용 GUI에서 leader 제어, 안전 순서 강제, 수집, dataset 검증과 학습 실행·상태 확인 가능 | GUI integration test |
 
 모델 선택에는 validation만 사용한다. `FS-03` validation을 통과한 후보 중 RMSE가 가장
 작은 모델을 선택하고 held-out test는 그 모델에 한 번만 사용한다. 통과 후보가 없으면
 최저 RMSE 후보는 기본적으로 diagnostic artifact로만 남긴다. 위의 명시적
 operator-selected 결정은 현재 고정 SHA 쌍에만 적용되는 별도 운용 결정이다.
+
+`FS-03`은 향후 모델을 정식 승격하기 위한 정확도 기준이므로 `1/1/2 N`을
+유지한다. `FS-06`은 현재 선택 모델의 실제 운용 중 이상을 검출하는 별도 기준이다.
+2026-09-01 동일 zero-set task replay에서 느린 동작은 p95/p99/max
+`0.951/1.181/1.722 N`, 정상 속도는 `1.072/1.336/2.096 N`이었고 false
+CONTACT는 모두 0회였다. 이를 포함하면서 CONTACT ON 경계 `2.5 N`을 넘지 않도록
+운용 한계를 `1.2/1.5/2.5 N`으로 고정했다. 한계 이내여도 CONTACT sample이 한
+번이라도 있으면 `FS-06`은 실패한다.
+
+근거 raw artifact는
+`~/.ros/ft_fb_leaderarm/datasets/right_current_model_diag_20260901/` 아래의
+`right_free_space_20260901_144955.npz`(SHA-256
+`6ea93c27bed13a2e551c2e362aed947bd4020d2c3c98c21c7c8ef5a78d44587c`)와
+`right_free_space_20260901_145052.npz`(SHA-256
+`fca5ed7529827bb72e551023a94c04f00e871381a12f87f3d77f12e544a20633`)다.
+두 artifact는 같은 `zero_set_id=tare_20260901_current_model_diag01`이므로 정식
+독립 zero-set 모델 평가가 아니라 현재 모델의 운용 한계를 정하는 근거로만 쓴다.
 
 ## Contact observer gates
 

@@ -6,6 +6,7 @@ import pytest
 from ft_fb_leaderarm.contract import APPROVAL_CONTRACT
 from ft_fb_leaderarm.feedback_analysis import (
     REQUIRED_COLUMNS,
+    SAFETY_LIMITS,
     analyze_feedback_evidence,
     analyze_feedback_onsets,
     onset_main,
@@ -34,13 +35,15 @@ def write_model(root):
     return model
 
 
-def write_csv(path, contact_pattern, feedback_on=False, gain_scale=0.0):
+def write_csv(
+    path, contact_pattern, feedback_on=False, gain_scale=0.0, free_force=0.2
+):
     fieldnames = sorted(REQUIRED_COLUMNS)
     with path.open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
         for index, contact in enumerate(contact_pattern):
-            force = 2.5 if contact else 0.2
+            force = 2.5 if contact else free_force
             row = {key: 0 for key in fieldnames}
             row.update(
                 {
@@ -118,18 +121,7 @@ def test_analyzer_counts_false_contact_and_stage_health(tmp_path):
     for index in (500, 1500, 2500):
         contact_pattern[index] = True
     write_csv(contact, contact_pattern)
-    limits = {
-        "max_contact_force_n": 5.0,
-        "max_free_force_error_n": 1.0,
-        "max_pose_step_deg": 1.0,
-        "max_velocity_reversal_hz": 8.0,
-        "max_source_age_ms": 20.0,
-        "max_record_gap_ms": 10.0,
-        "min_run_duration_s": 10.0,
-        "min_csv_hz": 250.0,
-        "min_contact_activations": 3,
-        "min_contact_feedback_nonzero_fraction": 0.95,
-    }
+    limits = {**SAFETY_LIMITS, "max_contact_force_n": 5.0}
     report = analyze_feedback_evidence(model, 0.40, free, [contact], limits)
     assert report["passed"]
     assert report["aggregate"]["false_contact_activations"] == 0
@@ -141,6 +133,14 @@ def test_analyzer_counts_false_contact_and_stage_health(tmp_path):
     rejected = analyze_feedback_evidence(model, 0.40, free, [contact], limits)
     assert not rejected["passed"]
     assert "FREE runs contain false CONTACT activations" in rejected["failures"]
+
+    write_csv(free[0], free_pattern, free_force=1.6)
+    rejected = analyze_feedback_evidence(model, 0.40, free, [contact], limits)
+    assert not rejected["passed"]
+    assert (
+        "FREE residual force p99 exceeded the operational limit"
+        in rejected["failures"]
+    )
 
 
 def test_onset_analyzer_checks_ramp_step_and_blocked_feedback(tmp_path):
@@ -184,18 +184,7 @@ def test_onset_analyzer_checks_ramp_step_and_blocked_feedback(tmp_path):
 
 def test_authorization_recomputes_bound_off_and_40_percent_csv(tmp_path):
     model = write_model(tmp_path / "model")
-    limits = {
-        "max_contact_force_n": 5.0,
-        "max_free_force_error_n": 1.0,
-        "max_pose_step_deg": 1.0,
-        "max_velocity_reversal_hz": 8.0,
-        "max_source_age_ms": 20.0,
-        "max_record_gap_ms": 10.0,
-        "min_run_duration_s": 10.0,
-        "min_csv_hz": 250.0,
-        "min_contact_activations": 3,
-        "min_contact_feedback_nonzero_fraction": 0.95,
-    }
+    limits = {**SAFETY_LIMITS, "max_contact_force_n": 5.0}
     free_pattern = [False] * 5001
     contact_pattern = [False] * 5001
     for index in (500, 1500, 2500):

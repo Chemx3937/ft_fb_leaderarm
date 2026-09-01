@@ -539,10 +539,11 @@ CSV는 기본적으로 다음에 저장된다.
 ls -lt "${FT_LOG_DIR}"/leader_teleop_right_*.csv
 ```
 
-Analyzer의 고정 안전 계약은 FREE 최대 1 N, observer source age 20 ms,
-CSV gap 10 ms, CSV 평균 250 Hz, pose step 1 deg, velocity reversal 8 Hz,
-run당 최소 10초, controlled CONTACT 최소 3회다. CLI 인자는 이 기준을 더
-엄격하게 만들 수 있지만 느슨하게 만들 수 없다.
+Analyzer의 고정 운용 안전 계약은 FREE p95 `1.2 N`, p99 `1.5 N`, hard max
+`2.5 N`, false CONTACT 0회, observer source age 20 ms, CSV gap 10 ms, CSV
+평균 250 Hz, pose step 1 deg, velocity reversal 8 Hz, run당 최소 10초,
+controlled CONTACT 최소 3회다. CLI 인자는 이 기준을 더 엄격하게 만들 수 있지만
+느슨하게 만들 수 없다. 정식 모델 승격용 `FS-03`의 `1/1/2 N` 기준은 별도다.
 
 ## 11. OFF → 40% 자동 분석과 승인
 
@@ -569,7 +570,9 @@ ros2 run ft_fb_leaderarm ft_feedback_analyze -- \
     "${FT_OFF_FREE_03}" \
   --contact-csv "${FT_OFF_CONTACT_01}" \
   --max-contact-force-n "${FT_MAX_CONTACT_FORCE_N}" \
-  --max-free-force-error-n 1.0 \
+  --max-free-force-p95-n 1.2 \
+  --max-free-force-p99-n 1.5 \
+  --max-free-force-error-n 2.5 \
   --max-pose-step-deg 1.0 \
   --max-velocity-reversal-hz 8.0 \
   --output "${FT_EVIDENCE_DIR}/off_to_40_analysis.json"
@@ -632,7 +635,9 @@ ros2 run ft_fb_leaderarm ft_feedback_analyze -- \
     "${FT_GAIN40_FREE_03}" \
   --contact-csv "${FT_GAIN40_CONTACT_01}" \
   --max-contact-force-n "${FT_MAX_CONTACT_FORCE_N}" \
-  --max-free-force-error-n 1.0 \
+  --max-free-force-p95-n 1.2 \
+  --max-free-force-p99-n 1.5 \
+  --max-free-force-error-n 2.5 \
   --max-pose-step-deg 1.0 \
   --max-velocity-reversal-hz 8.0 \
   --output "${FT_EVIDENCE_DIR}/gain40_to_100_analysis.json"

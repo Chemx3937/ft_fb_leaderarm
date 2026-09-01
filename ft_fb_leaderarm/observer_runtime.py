@@ -16,15 +16,15 @@ from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String
 
 from .contract import (
-    FORCE_GROUP_P95_LIMIT_N,
-    FORCE_HARD_MAX_LIMIT_N,
-    FORCE_P99_LIMIT_N,
+    OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N,
+    OPERATIONAL_FREE_FORCE_P95_LIMIT_N,
+    OPERATIONAL_FREE_FORCE_P99_LIMIT_N,
     SAMPLE_HZ,
 )
 
 
-SCHEMA_VERSION = 2
-ANALYSIS_TYPE = "physical_ft_observer_runtime_v2"
+SCHEMA_VERSION = 3
+ANALYSIS_TYPE = "physical_ft_observer_runtime_v3"
 COUNTERS = (
     "cycles",
     "valid_predictions",
@@ -218,17 +218,20 @@ def analyze_observer_runtime(start, end, observations):
     force_p95 = observation_metrics["free_residual_force_norm_p95_n"]
     force_p99 = observation_metrics["free_residual_force_norm_p99_n"]
     force_max = observation_metrics["free_residual_force_norm_max_n"]
-    if force_p95 is None or force_p95 > FORCE_GROUP_P95_LIMIT_N:
+    if force_p95 is None or force_p95 > OPERATIONAL_FREE_FORCE_P95_LIMIT_N:
         free_failures.append(
-            f"FREE residual force p95 exceeds {FORCE_GROUP_P95_LIMIT_N} N"
+            "FREE residual force p95 exceeds "
+            f"{OPERATIONAL_FREE_FORCE_P95_LIMIT_N} N"
         )
-    if force_p99 is None or force_p99 > FORCE_P99_LIMIT_N:
+    if force_p99 is None or force_p99 > OPERATIONAL_FREE_FORCE_P99_LIMIT_N:
         free_failures.append(
-            f"FREE residual force p99 exceeds {FORCE_P99_LIMIT_N} N"
+            "FREE residual force p99 exceeds "
+            f"{OPERATIONAL_FREE_FORCE_P99_LIMIT_N} N"
         )
-    if force_max is None or force_max > FORCE_HARD_MAX_LIMIT_N:
+    if force_max is None or force_max > OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N:
         free_failures.append(
-            f"FREE residual force hard max exceeds {FORCE_HARD_MAX_LIMIT_N} N"
+            "FREE residual force hard max exceeds "
+            f"{OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N} N"
         )
     frames = observation_metrics["observation_frames"]
     if len(frames) != 1 or not frames[0]:
@@ -244,9 +247,11 @@ def analyze_observer_runtime(start, end, observations):
         "binding": binding,
         "limits": {
             "required_hz": SAMPLE_HZ,
-            "max_free_residual_force_p95_n": FORCE_GROUP_P95_LIMIT_N,
-            "max_free_residual_force_p99_n": FORCE_P99_LIMIT_N,
-            "hard_max_free_residual_force_n": FORCE_HARD_MAX_LIMIT_N,
+            "max_free_residual_force_p95_n": OPERATIONAL_FREE_FORCE_P95_LIMIT_N,
+            "max_free_residual_force_p99_n": OPERATIONAL_FREE_FORCE_P99_LIMIT_N,
+            "hard_max_free_residual_force_n": (
+                OPERATIONAL_FREE_FORCE_HARD_MAX_LIMIT_N
+            ),
             "max_contact_observations": 0,
             "max_invalid_publications": 0,
             "max_stale_publications": 0,

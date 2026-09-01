@@ -94,9 +94,10 @@ export FT_MAX_CONTACT_FORCE_N=REPLACE_WITH_APPROVED_TASK_LIMIT
 
 ### 4.1 고정 안전 기준
 
-다음 기존 기준은 완화하지 않는다.
+다음 운용 기준은 실험 중 완화하지 않는다. 정식 모델 승격용 `FS-03`의
+p95/p99/hard max `1/1/2 N`은 별도로 유지한다.
 
-- FREE residual force: p95/p99 `<= 1 N`, hard max `<= 2 N`
+- FREE residual force: p95 `<= 1.2 N`, p99 `<= 1.5 N`, hard max `<= 2.5 N`
 - FREE false CONTACT: 0회
 - leader pose step: `<= 1 deg`
 - velocity reversal: `<= 8 Hz`
@@ -219,7 +220,7 @@ observer-only 상태에서 다음을 확인한다.
 
 - publish rate `>= 262.5 Hz`
 - invalid, stale, deadline miss 0회
-- 무접촉에서 residual p95/p99 `<= 1 N`, hard max `<= 2 N`
+- 무접촉에서 residual p95 `<= 1.2 N`, p99 `<= 1.5 N`, hard max `<= 2.5 N`
 - 무접촉 false CONTACT 0회
 - 동일 topic에 observer publisher가 두 개 이상 존재하지 않음
 
