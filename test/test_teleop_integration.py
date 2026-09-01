@@ -342,5 +342,9 @@ def test_feedback_il_gui_launch_binds_model_and_stage_to_recorder():
         'DeclareLaunchArgument("require_output_mount", default_value="true")'
         in source
     )
+    assert 'DeclareLaunchArgument("enable_d435", default_value="false")' in source
+    assert 'else "--disable-d435"' in source
     assert 'package="fb_leaderarm"' in source
     assert 'executable="feedback_leaderarm_data_collection_gui.py"' in source
+    assert '"observer_diagnostics_topic": "/ft_contact_observer/diagnostics"' in source
+    assert '"observer_input_topic": "/contact_state/observer_input"' in source

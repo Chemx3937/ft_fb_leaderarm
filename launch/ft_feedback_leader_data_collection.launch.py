@@ -91,11 +91,17 @@ def _setup(context):
     if stage not in (0.0, 0.40, 1.00):
         raise RuntimeError("feedback stage must be exactly 0.0, 0.40, or 1.00")
     model_hash = file_sha256(model_path)
+    d435_flag = (
+        "--enable-d435"
+        if _boolean(context, "enable_d435")
+        else "--disable-d435"
+    )
 
     recorder_command = [
         str(umi_python),
         str(recorder_script),
         "--config-yaml", str(recorder_config),
+        d435_flag,
         "--output-dir", str(output_dir),
         "--session-name", session,
         "--control-mode", "ros",
@@ -147,7 +153,11 @@ def _setup(context):
             name="feedback_leaderarm_data_collection_gui",
             output="screen",
             additional_env={"PYTHONPATH": _pythonpath_with_system_qt()},
-            parameters=[{"collection_log_dir": str(gui_log_dir)}],
+            parameters=[{
+                "collection_log_dir": str(gui_log_dir),
+                "observer_diagnostics_topic": "/ft_contact_observer/diagnostics",
+                "observer_input_topic": "/contact_state/observer_input",
+            }],
         ),
     ]
 
@@ -162,6 +172,7 @@ def generate_launch_description():
         DeclareLaunchArgument("data_output_dir"),
         DeclareLaunchArgument("data_session_name"),
         DeclareLaunchArgument("require_output_mount", default_value="true"),
+        DeclareLaunchArgument("enable_d435", default_value="false"),
         DeclareLaunchArgument("model_path"),
         DeclareLaunchArgument(
             "observer_config", default_value=str(share / "config/observer.yaml")

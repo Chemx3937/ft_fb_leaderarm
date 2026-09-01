@@ -733,6 +733,7 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_data_collection.launch.py \
   umi_recorder_config:="${FT_UMI_CONFIG}" \
   data_output_dir:="${FT_IL_DATA_DIR}" \
   data_session_name:="${FT_IL_SESSION}" \
+  enable_d435:=false \
   model_path:="${FT_MODEL}" \
   zero_set_confirmed:=true \
   zero_set_id:=runtime_il_off_01 \
@@ -740,6 +741,9 @@ ros2 launch ft_fb_leaderarm ft_feedback_leader_data_collection.launch.py \
   controller_config_hash:="${FT_CONTROLLER_HASH}" \
   learned_feedback_enable:=false
 ```
+
+현재 기본 수집 카메라는 D405 하나이며 D435는 연결하지 않아도 된다. 나중에 D435를
+다시 사용할 때만 장치를 연결하고 같은 launch에 `enable_d435:=true`를 지정한다.
 
 동일한 observer, teleop 또는 recorder를 다른 launch로 동시에 실행하지 않는다.
 GUI에서 작은 test episode 하나를 저장한 뒤 읽기 전용으로 검증한다. feedback OFF의
