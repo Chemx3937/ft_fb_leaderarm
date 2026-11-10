@@ -150,6 +150,7 @@ install(PROGRAMS
   scripts/ft_feedback_authorize
   scripts/ft_free_space_collection_gui.py
   scripts/ft_feedback_leader_data_collection_gui.py
+  scripts/ft_three_model_comparison_gui
   DESTINATION lib/${PROJECT_NAME}
 )
 

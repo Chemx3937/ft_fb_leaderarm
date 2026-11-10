@@ -170,6 +170,12 @@ ros2 run ft_fb_leaderarm ft_free_space_train -- \
 
 ## 실시간 Contact Observer
 
+선정한 학생 모델 `hybrid_tcn_gru_v1_20260930`과 `phys_ms_mlp_v1`은
+`BundlePredictor(bundle_path, require_approved=False)`로 오프라인 평가에 읽을 수 있다.
+두 모델 모두 history 32이며 각각 `sequence`, `short_multiscale` 전처리를 사용한다.
+`phys_ms_mlp_v1`은 번들의 물리 중력항까지 합산한다. 모델 SHA, feature/history,
+architecture 검사는 유지하며, 이 지원은 실시간 observer 운용 승인을 부여하지 않는다.
+
 학습 때와 동일한 고정 자세에서 새 hardware zero-set을 수행한 뒤 실행한다.
 observer도 1초 zero 검증을 다시 통과하기 전까지 `valid=false`를 발행한다.
 
@@ -190,8 +196,8 @@ ros2 topic echo /ft_contact_observer/diagnostics --once
 ros2 topic echo /contact_observer/right/observation --once
 ```
 
-contact detector는 force norm `2.5/1.2 N` ON/OFF hysteresis와
-`12/20 ms` hold를 사용한다. 이 값은 모방학습 replay의 오검출 감소를 근거로
+contact detector는 force norm `3.0/1.2 N` ON/OFF hysteresis와
+`20/20 ms` hold를 사용한다. 이 값은 무접촉 task replay의 오검출 감소를 근거로
 선택했으며 독립 ground-truth controlled-contact 검증은 아직 남아 있다.
 
 ## FT 기반 leader teleoperation/IL 연동
@@ -309,3 +315,19 @@ leader Dynamixel을 직접 구동하고 기존 오른팔 impedance controller에
 command를 발행한다. driver, impedance controller 구현과 AFT zero-set
 command 자체는 이 패키지가 소유하지 않는다. 기존 `fb_leaderarm` 소스와
 기존 dataset/model은 변경하지 않는다.
+
+## 세 모델 실험 비교 GUI
+
+[비교 GUI 운용 문서](document/three_model_comparison.md)를 따른다.
+손목 실측과 세 모델의 Fx/Fy/Fz 예측을 겹쳐 표시하고, 현재값·모델별 CONTACT·
+정지 노이즈·외부 하중을 제공한다. 무접촉은 독립 zero-set 4개에서 각 5회로
+총 20회를 완료했다.
+현재 접촉 계획은 **점증 가압·해제 공통 20회**이며 약한·일반 접촉의 추가 수집은
+진행하지 않는다. 과거 자료는 그대로 보존한다. 외부 센서는 검출 순간 하중을
+측정하고 손목 잔차 3.0/1.2 N·hold20/20ms observer가 CONTACT/FREE를 판정한다.
+외부 이진 CONTACT 문턱으로 손목 판정을 걸러내지 않는다.
+실제 계산 callback마다 원본 입력·예측·잔차·판정·시각을 비동기로 기록하고,
+별도 기준 계산으로 판정 준수를 검증한다. 외부 원본은 실제 판정 완료 시각에
+맞춰 검출 하중을 구한다. 모델 미검출·사전 활성·판정 기준 위반도 결과에 남긴다.
+30 N 도달·서서히 해제·무접촉 3초를 안내하며 실제 로봇 조작은 운용자가 수행한다.
+이 GUI는 로봇 제어와 FT zero-set을 실행하지 않는다.

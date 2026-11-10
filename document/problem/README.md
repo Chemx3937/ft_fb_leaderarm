@@ -43,6 +43,14 @@
 | [`FT-20260824-01`](FT-20260824-01.md) | 2026-08-24 | `ROBOT` | Smooth A/B | Smooth ON에서 leader 정지 중 intent가 계속 움직여 follower 자발 운동 | `VERIFY` |
 | [`FT-20260824-02`](FT-20260824-02.md) | 2026-08-24 | `ROBOT` | Smooth stress | 수직 G1에서 횡이동과 끊기는 듯한 follower 움직임 체감 | `OPEN` |
 | [`FT-20260901-01`](FT-20260901-01.md) | 2026-09-01 | `MODEL` | Observer-only FREE | 무접촉 logistic-box task에서 residual 기준 초과와 false CONTACT 재현 | `OPEN` |
+| [`FT-20261110-01`](FT-20261110-01.md) | 2026-11-10 | `ROBOT` | Hand 파지 준비 | 오른손 전용 slave 배정 후 피드백 복구·운용자 박스 파지 확인 | `CLOSED` |
+| [`FT-20261110-02`](FT-20261110-02.md) | 2026-11-10 | `SYNC` | 시간 동기화 준비 | PC Chrony 복구 후 gene 상대 오차 상한 0.0401 ms·최종 status GO 확인 | `CLOSED` |
+| [`FT-20261111-01`](FT-20261111-01.md) | 2026-11-11 | `OPS/RUNTIME/ROBOT` | 무접촉·점증 가압 비교 | 사전 정지 검사 누락·teleop 지연·최종 가압 20회의 입력 시각 불일치와 CONTACT 초기화 | `OPEN` |
+| [`FT-20261111-03`](FT-20261111-03.md) | 2026-11-11 | `OPS/RUNTIME` | GUI 소프트웨어 검증 | 고정 테스트 입력 갱신·대기 제한 후 Python 101개와 C++ 6개 통과 | `MITIGATED` |
+| [`FT-20261111-04`](FT-20261111-04.md) | 2026-11-11 | `OPS/RUNTIME` | 경계 접촉 GUI 검증 | 100 ms 평균창 끝점 반올림 보완 후 Python 107개·C++ 6개 통과 | `CLOSED` |
+| [`FT-20261111-05`](FT-20261111-05.md) | 2026-11-11 | `OPS/RUNTIME` | 자동 단계 GUI 검증 | 무접촉·해제 단계의 힘 카드 문구 동기화 및 전체 121+6 테스트 통과 | `CLOSED` |
+| [`FT-20261111-06`](FT-20261111-06.md) | 2026-11-11 | `CONTACT/DATA/OPS` | 독립 외부 하중 비교 | 사전 CONTACT의 ramp 검출 힘 오집계 수정·기준 분리·혼합 하중 별도 보존 | `CLOSED` |
+| [`FT-20261111-07`](FT-20261111-07.md) | 2026-11-11 | `CONTACT/DATA/OPS` | 점증 가압20회·실시간 판정 | 계산 tick 로그·독립 기준 검사·외부 이진 필터 제거·이전 자료 보존 | `CLOSED` |
 
 새 문제는 기존 행을 보존하고 `FT-YYYYMMDD-NN` 형식의 파일과 행으로 추가한다.
 

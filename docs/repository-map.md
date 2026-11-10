@@ -30,6 +30,7 @@ contact observation과 오른팔 leader feedback을 제공한다.
 | Leader teleoperation | `src/single_impedance_*.cpp`, `include/ft_fb_leaderarm/` | `launch/ft_feedback_leader_teleop.launch.py`, `config/single_impedance_leader_damping.yaml`, `test/test_teleop_integration.py` |
 | Leader intent/smoothing | `src/intent_trajectory_generator.cpp`, `src/single_impedance_pose_publisher.cpp` | `config/single_impedance_leader_damping.yaml`, `test/test_intent_trajectory_generator.cpp`, `document/stabilization_teleoperation/` |
 | Feedback IL 수집 GUI | `launch/ft_feedback_leader_data_collection.launch.py` | `scripts/ft_feedback_leader_data_collection_gui.py` |
+| 세 모델 비교 GUI·원본·실시간 판정 기록·가압 분석 | `ft_fb_leaderarm/comparison.py`, `ft_fb_leaderarm/comparison_gui.py`, `ft_fb_leaderarm/comparison_trace.py` | `launch/three_model_comparison_gui.launch.py`, `test/test_comparison.py`, `test/test_comparison_trace.py`, `document/three_model_comparison.md` |
 | 데이터 수집 GUI | `scripts/ft_free_space_collection_gui.py` | `launch/collect_free_space_gui.launch.py` |
 | 자동 검증 | `docs/verification.md`, `test/` | `CMakeLists.txt`의 `BUILD_TESTING` 영역 |
 | 사용자 운용 문서 | `README.md`, `document/` | 동작 변경 시 함께 갱신 |

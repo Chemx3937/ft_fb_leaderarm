@@ -34,3 +34,11 @@ SOFTWARE.
 `scripts/ft_feedback_leader_data_collection_gui.py` is derived from the
 MIT-declared `fb_leaderarm` package GUI. The imported source snapshot SHA-256
 is `30e765ee4afa38fb4dafd85d71b439a66c8ee2fdecf852761121be284a04bf00`.
+
+## Three-model comparison monitor
+
+`ft_fb_leaderarm/comparison_gui.py` adapts the bounded history, timestamp-based
+QPainter plotting and numeric monitor layout of the MIT-declared `fb_leaderarm`
+package's `scripts/learned_wrench_monitor_gui.py` and
+`scripts/contact_observer_monitor_gui.py`. It does not import the external
+package at runtime.

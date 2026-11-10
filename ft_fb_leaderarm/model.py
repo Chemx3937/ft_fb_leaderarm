@@ -24,6 +24,11 @@ RUNTIME_ABLATIONS = {
     **ABLATIONS,
     PHYSICAL_RIDGE_ABLATION: ("short_multiscale", 32, (), "ridge"),
 }
+DIAGNOSTIC_ABLATIONS = {
+    **RUNTIME_ABLATIONS,
+    "hybrid_tcn_gru_v1_20260930": ("sequence", 32, (), "custom"),
+    "phys_ms_mlp_v1": ("short_multiscale", 32, (), "custom"),
+}
 
 
 class WrenchRegressor(nn.Module):
@@ -213,10 +218,13 @@ class BundlePredictor:
             else "diagnostic"
         )
         self.ablation = str(self.metadata.get("ablation", ""))
-        if self.ablation not in RUNTIME_ABLATIONS:
+        supported_ablations = (
+            RUNTIME_ABLATIONS if require_approved else DIAGNOSTIC_ABLATIONS
+        )
+        if self.ablation not in supported_ablations:
             raise RuntimeError(f"unsupported model ablation: {self.ablation}")
         expected_mode, expected_history, _, expected_architecture = (
-            RUNTIME_ABLATIONS[self.ablation]
+            supported_ablations[self.ablation]
         )
         self.mode = str(self.metadata.get("feature_mode", ""))
         self.history = int(self.metadata.get("history", 0))

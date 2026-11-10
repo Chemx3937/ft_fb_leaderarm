@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 from ament_index_python.packages import get_package_share_directory
 
 from ft_fb_leaderarm.contract import (
@@ -191,7 +192,55 @@ def test_obsolete_approval_contract_is_diagnostic_only(tmp_path):
         raise AssertionError("obsolete approval contract was accepted")
 
 
-def test_rejected_physical_ridge_bundle_is_diagnostic_loadable(tmp_path):
+@pytest.mark.parametrize("approved", [False, True])
+def test_student_hybrid_is_diagnostic_only(tmp_path, approved):
+    core = RecurrentWrenchRegressor(24, 16, "gru")
+    for parameter in core.parameters():
+        parameter.data.zero_()
+    expected = np.arange(6, dtype=np.float32)
+    model = make_normalized_model(
+        core, np.zeros(24), np.ones(24), expected, np.ones(6)
+    )
+    save_bundle(
+        model,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "approval_contract": APPROVAL_CONTRACT,
+            "approved": approved,
+            "sample_hz": SAMPLE_HZ,
+            "base_feature_dim": BASE_FEATURE_DIM,
+            "ablation": "hybrid_tcn_gru_v1_20260930",
+            "feature_mode": "sequence",
+            "history": 32,
+            "architecture": "custom",
+        },
+        tmp_path,
+    )
+    predictor = BundlePredictor(tmp_path, require_approved=False)
+    assert predictor.acceptance_source == "diagnostic"
+    np.testing.assert_allclose(
+        predictor.predict(np.zeros((32, BASE_FEATURE_DIM), dtype=np.float32)),
+        expected,
+    )
+    error = "unsupported model ablation" if approved else "rejected"
+    with pytest.raises(RuntimeError, match=error):
+        BundlePredictor(tmp_path)
+
+    metadata_path = tmp_path / "metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    metadata["history"] = 16
+    metadata_path.write_text(json.dumps(metadata))
+    with pytest.raises(RuntimeError, match="metadata disagree"):
+        BundlePredictor(tmp_path, require_approved=False)
+
+
+@pytest.mark.parametrize(
+    ("ablation", "architecture"),
+    [(PHYSICAL_RIDGE_ABLATION, "ridge"), ("phys_ms_mlp_v1", "custom")],
+)
+def test_rejected_physical_bundle_is_diagnostic_loadable(
+    tmp_path, ablation, architecture
+):
     core = WrenchRegressor(54, ())
     for parameter in core.parameters():
         parameter.data.zero_()
@@ -212,10 +261,10 @@ def test_rejected_physical_ridge_bundle_is_diagnostic_loadable(tmp_path):
             "approved": False,
             "sample_hz": SAMPLE_HZ,
             "base_feature_dim": BASE_FEATURE_DIM,
-            "ablation": PHYSICAL_RIDGE_ABLATION,
+            "ablation": ablation,
             "feature_mode": "short_multiscale",
             "history": 32,
-            "architecture": "ridge",
+            "architecture": architecture,
             "prediction_contract": PHYSICAL_RIDGE_CONTRACT,
             "zero_pose_deg": list(DEFAULT_ZERO_POSE_DEG),
             "gravity_model": {
